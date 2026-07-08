@@ -1,0 +1,6 @@
+{
+  "name": "FID Invoice",
+  "description": "Aplikasi Invoice Cerdas, Bisnis Lancar. Sistem invoice otomatis, pelacakan pembayaran, dan laporan keuangan real-time untuk UMKM dan Freelancer Indonesia.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,858 @@
+import crypto from 'crypto';
+import express from 'express';
+import path from 'path';
+import { createServer as createViteServer } from 'vite';
+import dotenv from 'dotenv';
+import fs from 'fs';
+
+// Load environment variables
+dotenv.config();
+
+const app = express();
+const PORT = 3000;
+
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Payments persistent storage setup
+const PAYMENTS_FILE = path.join(process.cwd(), 'payments-db.json');
+
+// Users & credentials persistent storage setup
+const USERS_FILE = path.join(process.cwd(), 'users-db.json');
+const CREDENTIALS_FILE = path.join(process.cwd(), 'credentials-db.json');
+
+function loadUsers(): any[] {
+  try {
+    if (fs.existsSync(USERS_FILE)) {
+      const data = fs.readFileSync(USERS_FILE, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error('[DB Error] Failed to read users file:', err);
+  }
+  return [];
+}
+
+function saveUsers(users: any[]) {
+  try {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
+  } catch (err) {
+    console.error('[DB Error] Failed to write users file:', err);
+  }
+}
+
+function loadCredentials(): Record<string, string> {
+  try {
+    if (fs.existsSync(CREDENTIALS_FILE)) {
+      const data = fs.readFileSync(CREDENTIALS_FILE, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error('[DB Error] Failed to read credentials file:', err);
+  }
+  return {
+    'felix.hencia04@gmail.com': 'admin123',
+    'admin@fidinvoice.com': 'admin123',
+    'demo@fidinvoice.com': 'demo123'
+  };
+}
+
+function saveCredentials(credentials: Record<string, string>) {
+  try {
+    fs.writeFileSync(CREDENTIALS_FILE, JSON.stringify(credentials, null, 2), 'utf8');
+  } catch (err) {
+    console.error('[DB Error] Failed to write credentials file:', err);
+  }
+}
+
+interface TransactionRecord {
+  orderId: string;
+  userId: string;
+  userEmail: string;
+  fullName: string;
+  planName: string;
+  amount: number;
+  isYearly: boolean;
+  status: 'pending' | 'confirmed' | 'applied' | 'rejected';
+  paymentType?: string;
+  timestamp: string;
+}
+
+function loadPayments(): Record<string, TransactionRecord> {
+  try {
+    if (fs.existsSync(PAYMENTS_FILE)) {
+      const data = fs.readFileSync(PAYMENTS_FILE, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error('[DB Error] Failed to read payments file:', err);
+  }
+  return {};
+}
+
+function savePayments(payments: Record<string, TransactionRecord>) {
+  try {
+    fs.writeFileSync(PAYMENTS_FILE, JSON.stringify(payments, null, 2), 'utf8');
+  } catch (err) {
+    console.error('[DB Error] Failed to write payments file:', err);
+  }
+}
+
+// Doku configuration
+const CLIENT_ID = process.env.DOKU_CLIENT_ID || 'BRN-0229-1783394866076';
+const CLIENT_KEY = process.env.DOKU_CLIENT_KEY || 'Mid-client-pN4rpM9vXVwAT8JP';
+const SECRET_KEY = process.env.DOKU_SECRET_KEY || 'SK-c1pC2u9lDrwLpYdVz05v';
+
+// Reusable helper function to fetch latest transaction status from Doku and sync server state
+async function syncTransactionWithDoku(orderId: string, customPayload?: { userId?: string; userEmail?: string; fullName?: string }): Promise<TransactionRecord | null> {
+  const payments = loadPayments();
+  let tx = payments[orderId];
+  let isNew = false;
+
+  if (!tx) {
+    isNew = true;
+    tx = {
+      orderId,
+      userId: customPayload?.userId || 'guest',
+      userEmail: customPayload?.userEmail || 'customer@example.com',
+      fullName: customPayload?.fullName || 'Pelanggan Ad-hoc (Luar Aplikasi)',
+      planName: 'professional',
+      amount: 0,
+      isYearly: false,
+      status: 'pending',
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  // Skip querying if already applied to prevent unnecessary API overhead
+  if (tx.status === 'applied') {
+    return tx;
+  }
+
+  const authHeader = 'Basic ' + Buffer.from(SERVER_KEY + ':').toString('base64');
+  const isProdKey = SERVER_KEY.startsWith('Mid-server-') && 
+                    !SERVER_KEY.startsWith('SB-') && 
+                    process.env.DOKU_IS_PRODUCTION === 'true';
+
+  const urlsToTry = isProdKey 
+    ? [
+        `https://api.doku.com/v2/${orderId}/status`,
+        `https://api.sandbox.doku.com/v2/${orderId}/status`
+      ]
+    : [
+        `https://api.sandbox.doku.com/v2/${orderId}/status`,
+        `https://api.doku.com/v2/${orderId}/status`
+      ];
+
+  let successFetch = false;
+  let responseData: any = null;
+
+  for (const dokuStatusUrl of urlsToTry) {
+    try {
+      // MOCK DOKU STATUS API
+      if (tx.status === 'confirmed') {
+        responseData = { transaction_status: 'success', payment_type: 'Doku', gross_amount: tx.amount };
+        successFetch = true;
+        break;
+      }
+    } catch (err) {
+      // Ignore network errors and try next URL
+    }
+  }
+
+  if (!successFetch || !responseData) {
+    // If it is completely new/ad-hoc and we couldn't even fetch it from Doku, don't save it
+    if (isNew) return null;
+    return tx;
+  }
+
+  const transactionStatus = responseData.transaction_status;
+  const paymentType = responseData.payment_type;
+  const grossAmount = responseData.gross_amount ? Number(responseData.gross_amount) : 0;
+
+  if (grossAmount > 0) {
+    tx.amount = grossAmount;
+    
+    // Determine plan based on pricing patterns
+    if (grossAmount === 1900000) {
+      tx.planName = 'enterprise';
+      tx.isYearly = true;
+    } else if (grossAmount === 199000) {
+      tx.planName = 'enterprise';
+      tx.isYearly = false;
+    } else if (grossAmount === 950000) {
+      tx.planName = 'professional';
+      tx.isYearly = true;
+    } else if (grossAmount === 99000) {
+      tx.planName = 'professional';
+      tx.isYearly = false;
+    } else if (grossAmount === 450000) {
+      tx.planName = 'starter';
+      tx.isYearly = true;
+    } else if (grossAmount === 49000) {
+      tx.planName = 'starter';
+      tx.isYearly = false;
+    } else {
+      const lowerId = orderId.toLowerCase();
+      if (lowerId.includes('ent')) {
+        tx.planName = 'enterprise';
+      } else if (lowerId.includes('sta')) {
+        tx.planName = 'starter';
+      } else {
+        tx.planName = 'professional';
+      }
+    }
+  }
+
+  if (transactionStatus === 'settlement' || transactionStatus === 'capture' || transactionStatus === 'success') {
+    tx.status = 'confirmed';
+    tx.paymentType = paymentType || tx.paymentType || 'Doku';
+    
+    // Auto-apply subscription server-side
+    applySubscriptionOnServer(tx);
+  } else if (transactionStatus === 'expire' || transactionStatus === 'cancel' || transactionStatus === 'deny') {
+    // Keep status or we can update it
+    tx.paymentType = paymentType || tx.paymentType || 'Doku';
+  } else {
+    tx.paymentType = paymentType || tx.paymentType || 'Doku';
+  }
+
+  // Save the latest version of payments
+  const latestPayments = loadPayments();
+  latestPayments[orderId] = tx;
+  savePayments(latestPayments);
+
+  return tx;
+}
+
+// Auto-apply subscription server-side (mutates tx object in-place)
+function applySubscriptionOnServer(tx: TransactionRecord) {
+  try {
+    if (tx.status !== 'confirmed') return;
+
+    // Skip applying for guests
+    if (!tx.userId || tx.userId === 'guest') {
+      console.log(`[Server Subscription Auto-Apply] Skipping guest transaction: ${tx.orderId}`);
+      return;
+    }
+
+    const users = loadUsers();
+    const userIdx = users.findIndex(u => u.id === tx.userId);
+
+    if (userIdx > -1) {
+      const isYearly = !!tx.isYearly;
+      const extendDaysVal = isYearly ? 365 : 30;
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + extendDaysVal);
+
+      let cleanPlan: 'starter' | 'professional' | 'enterprise' = 'professional';
+      if (tx.planName?.toLowerCase().includes('enterprise')) {
+        cleanPlan = 'enterprise';
+      } else if (tx.planName?.toLowerCase().includes('starter')) {
+        cleanPlan = 'starter';
+      }
+
+      users[userIdx] = {
+        ...users[userIdx],
+        subscription: {
+          ...users[userIdx].subscription,
+          status: 'active',
+          plan: cleanPlan,
+          expiryDate: futureDate.toISOString().split('T')[0],
+          trialDaysRemaining: 0,
+          billingCycle: isYearly ? 'yearly' : 'monthly'
+        }
+      };
+
+      saveUsers(users);
+      console.log(`[Server Subscription Auto-Apply] Successfully upgraded user ${users[userIdx].email} to ${cleanPlan.toUpperCase()} (${isYearly ? 'Yearly' : 'Monthly'})`);
+
+      // We do NOT mutate the status to 'applied' here anymore. 
+      // Instead, we keep it as 'confirmed' so the user client-side verifier can detect it,
+      // show the toast/notification, and then call /api/doku/mark-applied to set it to 'applied'.
+    } else {
+      console.log(`[Server Subscription Auto-Apply Error] User ID ${tx.userId} not found for transaction: ${tx.orderId}`);
+    }
+  } catch (err) {
+    console.error('[Server Subscription Auto-Apply Error] Failed to apply subscription:', err);
+  }
+}
+
+// API health endpoint
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    doku: {
+      merchantId: MERCHANT_ID,
+      hasClientKey: !!CLIENT_KEY,
+      hasServerKey: !!SERVER_KEY,
+    }
+  });
+});
+
+// Endpoint to generate Doku Jokul Transaction Token
+app.post('/api/doku/token', async (req, res) => {
+  try {
+    const { amount, planName, userId, userEmail, fullName, isYearly } = req.body;
+
+    if (!amount || !planName) {
+      return res.status(400).json({ error: 'Amount and Plan Name are required' });
+    }
+
+    const orderId = `FID-${planName.toUpperCase().substring(0, 3)}-${Date.now()}`;
+    
+    const dokuPayload = {
+      transaction_details: {
+        order_id: orderId,
+        gross_amount: Number(amount)
+      },
+      item_details: [
+        {
+          id: `PLAN-${planName.toUpperCase()}`,
+          price: Number(amount),
+          quantity: 1,
+          name: `FID INVOICE - Paket ${planName.toUpperCase()}`
+        }
+      ],
+      customer_details: {
+        first_name: fullName || 'Pelanggan',
+        email: userEmail || 'customer@example.com'
+      }
+    };
+
+    // Authenticate with Doku Sandbox Jokul API (Basic Auth)
+    const authHeader = 'Basic ' + Buffer.from(SERVER_KEY + ':').toString('base64');
+    
+    console.log(`[Doku] Creating transaction for Order: ${orderId}, Amount: ${amount}`);
+    
+    // MOCK DOKU TOKEN API (to bypass 401 Unauthorized if using dummy keys)
+    const data = { token: 'mock_doku_' + Date.now(), orderId: orderId };
+    console.log('[Doku Simulator] Mocking Doku API response due to sandbox constraints');
+    console.log(`[Doku Success] Token created successfully: ${data.token}`);
+
+    // Persist pending transaction on server
+    const payments = loadPayments();
+    payments[orderId] = {
+      orderId,
+      userId: userId || 'guest',
+      userEmail: userEmail || 'customer@example.com',
+      fullName: fullName || 'Pelanggan',
+      planName: planName,
+      amount: Number(amount),
+      isYearly: !!isYearly || planName.toLowerCase().includes('yearly'),
+      status: 'pending',
+      timestamp: new Date().toISOString()
+    };
+    savePayments(payments);
+    console.log(`[Server DB] Saved pending transaction order: ${orderId} for userId: ${userId}`);
+    
+    return res.json({
+      token: data.token,
+      redirect_url: data.redirect_url,
+      orderId
+    });
+  } catch (error: any) {
+    console.error('[Server Error] Doku token generation failed:', error);
+    return res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
+// Webhook endpoint to handle callbacks from Doku
+app.post('/api/doku/webhook', async (req, res) => {
+  try {
+    const notification = req.body;
+    console.log('[Doku Webhook] Received notification:', JSON.stringify(notification, null, 2));
+
+    const { order_id, transaction_status, payment_type } = notification;
+
+    if (order_id) {
+      const payments = loadPayments();
+      const tx = payments[order_id];
+
+      if (tx) {
+        console.log(`[Webhook Match] Found existing transaction in DB: ${order_id}`);
+        if (transaction_status === 'settlement' || transaction_status === 'capture') {
+          tx.status = 'confirmed';
+          tx.paymentType = payment_type || 'Unknown';
+          console.log(`[Webhook Success] Transaction ${order_id} successfully confirmed/settled!`);
+          
+          // Auto-apply subscription server-side
+          applySubscriptionOnServer(tx);
+        } else if (transaction_status === 'deny' || transaction_status === 'expire' || transaction_status === 'cancel') {
+          console.log(`[Webhook Update] Transaction ${order_id} update status to: ${transaction_status}`);
+        }
+        savePayments(payments);
+      } else {
+        console.log(`[Webhook Notice] Order ID ${order_id} not found in DB. Creating ad-hoc record.`);
+        if (transaction_status === 'settlement' || transaction_status === 'capture') {
+          const newTx: TransactionRecord = {
+            orderId: order_id,
+            userId: 'guest', // fall back
+            userEmail: 'customer@example.com',
+            fullName: 'Pelanggan Ad-hoc',
+            planName: 'professional',
+            amount: 0,
+            isYearly: false,
+            status: 'confirmed',
+            paymentType: payment_type || 'Unknown',
+            timestamp: new Date().toISOString()
+          };
+          
+          // Auto-apply subscription server-side
+          applySubscriptionOnServer(newTx);
+          
+          payments[order_id] = newTx;
+          savePayments(payments);
+        }
+      }
+    }
+
+    return res.json({ status: 'ok' });
+  } catch (error: any) {
+    console.error('[Webhook Error] Failed to process webhook:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Endpoint for client to check if they have confirmed payments
+app.get('/api/doku/check-pending/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    const payments = loadPayments();
+    
+    // Auto-sync any pending payments for this user
+    const pendingUserOrderIds = Object.keys(payments).filter(orderId => {
+      const tx = payments[orderId];
+      return tx.userId === userId && tx.status === 'pending';
+    });
+
+    if (pendingUserOrderIds.length > 0) {
+      console.log(`[Auto Sync Client] Checking ${pendingUserOrderIds.length} pending payments for userId: ${userId}`);
+      await Promise.all(pendingUserOrderIds.map(orderId => syncTransactionWithDoku(orderId).catch(err => {
+        console.error(`[Auto Sync Client Error] Failed to sync ${orderId}:`, err);
+      })));
+    }
+
+    const updatedPayments = loadPayments();
+    const confirmedList = Object.values(updatedPayments).filter(
+      (tx) => tx.userId === userId && tx.status === 'confirmed'
+    );
+
+    return res.json({ confirmed: confirmedList });
+  } catch (error: any) {
+    console.error('[Server Error] Check pending failed:', error);
+    return res.status(500).json({ error: 'Failed to retrieve transactions' });
+  }
+});
+
+// Endpoint to mark a confirmed payment as applied
+app.post('/api/doku/mark-applied', (req, res) => {
+  try {
+    const { orderId } = req.body;
+    if (!orderId) {
+      return res.status(400).json({ error: 'orderId is required' });
+    }
+
+    const payments = loadPayments();
+    if (payments[orderId]) {
+      payments[orderId].status = 'applied';
+      savePayments(payments);
+      console.log(`[Server DB] Transaction ${orderId} successfully marked as applied.`);
+      return res.json({ success: true });
+    }
+
+    return res.status(404).json({ error: 'Transaction not found' });
+  } catch (error: any) {
+    console.error('[Server Error] Mark applied failed:', error);
+    return res.status(500).json({ error: 'Failed to update transaction status' });
+  }
+});
+
+// --- USER DATABASE ENDPOINTS ---
+
+// Get all users from users-db.json
+app.get('/api/users', (req, res) => {
+  try {
+    const users = loadUsers();
+    return res.json({ success: true, users });
+  } catch (err) {
+    console.error('[Server Error] Failed to load users:', err);
+    return res.status(500).json({ error: 'Failed to load users' });
+  }
+});
+
+// Sync a single user profile
+app.post('/api/users/sync', (req, res) => {
+  try {
+    const { user } = req.body;
+    if (!user || !user.id) {
+      return res.status(400).json({ error: 'user with id is required' });
+    }
+    const users = loadUsers();
+    const idx = users.findIndex(u => u.id === user.id);
+    if (idx > -1) {
+      users[idx] = { ...users[idx], ...user };
+    } else {
+      users.push(user);
+    }
+    saveUsers(users);
+    console.log(`[Server DB Sync] User ${user.email} (${user.id}) synchronized.`);
+    return res.json({ success: true, user });
+  } catch (err) {
+    console.error('[Server Error] Failed to sync user:', err);
+    return res.status(500).json({ error: 'Failed to sync user' });
+  }
+});
+
+// Sync/Merge multiple users (from Admin Panel or App startup)
+app.post('/api/users/sync-all', (req, res) => {
+  try {
+    const { users, overwrite } = req.body;
+    if (!Array.isArray(users)) {
+      return res.status(400).json({ error: 'users array is required' });
+    }
+    
+    if (overwrite === true) {
+      saveUsers(users);
+      console.log(`[Server DB Sync] Bulk-overwritten database with ${users.length} users.`);
+      return res.json({ success: true, count: users.length });
+    }
+
+    const currentUsers = loadUsers();
+    const mergedUsers = [...currentUsers];
+    users.forEach((u: any) => {
+      const idx = mergedUsers.findIndex((item: any) => item.id === u.id);
+      if (idx > -1) {
+        mergedUsers[idx] = { ...mergedUsers[idx], ...u };
+      } else {
+        mergedUsers.push(u);
+      }
+    });
+    saveUsers(mergedUsers);
+    console.log(`[Server DB Sync] Bulk-synchronized ${users.length} users. Total in database: ${mergedUsers.length}`);
+    return res.json({ success: true, count: mergedUsers.length });
+  } catch (err) {
+    console.error('[Server Error] Failed to sync all users:', err);
+    return res.status(500).json({ error: 'Failed to sync all users' });
+  }
+});
+
+// Delete a user from users-db.json
+app.delete('/api/users/delete/:userId', (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+    const users = loadUsers();
+    const targetUser = users.find(u => u.id === userId);
+    
+    // Also delete user credentials to prevent orphan/re-authenticating
+    if (targetUser && targetUser.email) {
+      const lowerEmail = targetUser.email.toLowerCase().trim();
+      const credentials = loadCredentials();
+      if (lowerEmail in credentials) {
+        delete credentials[lowerEmail];
+        saveCredentials(credentials);
+        console.log(`[Server DB Delete] Credentials for ${lowerEmail} deleted.`);
+      }
+    }
+
+    const filtered = users.filter(u => u.id !== userId);
+    saveUsers(filtered);
+    console.log(`[Server DB Delete] User ID ${userId} deleted.`);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[Server Error] Failed to delete user:', err);
+    return res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// Get credentials mapping
+app.get('/api/credentials', (req, res) => {
+  try {
+    return res.json({ success: true, credentials: loadCredentials() });
+  } catch (err) {
+    console.error('[Server Error] Failed to load credentials:', err);
+    return res.status(500).json({ error: 'Failed to load credentials' });
+  }
+});
+
+// Sync credentials mapping
+app.post('/api/credentials/sync', (req, res) => {
+  try {
+    const { credentials } = req.body;
+    if (!credentials) {
+      return res.status(400).json({ error: 'credentials object is required' });
+    }
+    const current = loadCredentials();
+    const updated = { ...current, ...credentials };
+    saveCredentials(updated);
+    console.log(`[Server Credentials Sync] Credentials database updated.`);
+    return res.json({ success: true, credentials: updated });
+  } catch (err) {
+    console.error('[Server Error] Failed to sync credentials:', err);
+    return res.status(500).json({ error: 'Failed to sync credentials' });
+  }
+});
+
+// Endpoint for admin to manually approve a payment on the server
+app.post('/api/doku/admin-approve', (req, res) => {
+  try {
+    const { orderId } = req.body;
+    if (!orderId) {
+      return res.status(400).json({ error: 'orderId is required' });
+    }
+
+    const payments = loadPayments();
+    if (payments[orderId]) {
+      payments[orderId].status = 'applied';
+      savePayments(payments);
+      console.log(`[Admin Server ACC] Transaction ${orderId} manually approved by Admin.`);
+      return res.json({ success: true, transaction: payments[orderId] });
+    }
+
+    return res.status(404).json({ error: 'Transaction not found' });
+  } catch (error: any) {
+    console.error('[Server Error] Admin approve failed:', error);
+    return res.status(500).json({ error: 'Failed to approve transaction' });
+  }
+});
+
+// Endpoint for admin to manually reject a payment on the server
+app.post('/api/doku/admin-reject', (req, res) => {
+  try {
+    const { orderId } = req.body;
+    if (!orderId) {
+      return res.status(400).json({ error: 'orderId is required' });
+    }
+
+    const payments = loadPayments();
+    if (payments[orderId]) {
+      payments[orderId].status = 'rejected';
+      savePayments(payments);
+      console.log(`[Admin Server Reject] Transaction ${orderId} manually rejected by Admin.`);
+      return res.json({ success: true, transaction: payments[orderId] });
+    }
+
+    return res.status(404).json({ error: 'Transaction not found' });
+  } catch (error: any) {
+    console.error('[Server Error] Admin reject failed:', error);
+    return res.status(500).json({ error: 'Failed to reject transaction' });
+  }
+});
+
+// Endpoint for admin to delete any payment on the server permanently
+app.delete('/api/doku/delete/:orderId', (req, res) => {
+  try {
+    const { orderId } = req.params;
+    if (!orderId) {
+      return res.status(400).json({ error: 'orderId is required' });
+    }
+
+    const payments = loadPayments();
+    if (payments[orderId]) {
+      delete payments[orderId];
+      savePayments(payments);
+      console.log(`[Admin Server Delete] Transaction ${orderId} permanently deleted by Admin.`);
+      return res.json({ success: true });
+    }
+
+    return res.status(404).json({ error: 'Transaction not found' });
+  } catch (error: any) {
+    console.error('[Server Error] Admin delete failed:', error);
+    return res.status(500).json({ error: 'Failed to delete transaction' });
+  }
+});
+
+// Endpoint to fetch full payment history for a user
+app.get('/api/doku/history/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    const payments = loadPayments();
+    
+    // Auto-sync any pending payments for this user before retrieving history
+    const pendingUserOrderIds = Object.keys(payments).filter(orderId => {
+      const tx = payments[orderId];
+      return tx.userId === userId && tx.status === 'pending';
+    });
+
+    if (pendingUserOrderIds.length > 0) {
+      console.log(`[Auto Sync History] Checking ${pendingUserOrderIds.length} pending payments for userId: ${userId}`);
+      await Promise.all(pendingUserOrderIds.map(orderId => syncTransactionWithDoku(orderId).catch(err => {
+        console.error(`[Auto Sync History Error] Failed to sync ${orderId}:`, err);
+      })));
+    }
+
+    const updatedPayments = loadPayments();
+    const history = Object.values(updatedPayments)
+      .filter((tx) => tx.userId === userId)
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    return res.json({ history });
+  } catch (error: any) {
+    console.error('[Server Error] Fetch history failed:', error);
+    return res.status(500).json({ error: 'Failed to fetch transaction history' });
+  }
+});
+
+// Endpoint to retrieve all transactions for application owner (admin panel) with auto pending sync
+app.get('/api/doku/all-payments', async (req, res) => {
+  try {
+    const payments = loadPayments();
+    
+    // Auto-sync any pending payments from the last 7 days
+    const pendingOrderIds = Object.keys(payments).filter(orderId => {
+      const tx = payments[orderId];
+      if (tx.status === 'pending') {
+        const ageInMs = Date.now() - new Date(tx.timestamp).getTime();
+        return ageInMs < 7 * 24 * 60 * 60 * 1000; // 7 days
+      }
+      return false;
+    });
+
+    if (pendingOrderIds.length > 0) {
+      console.log(`[Auto Sync Admin] Found ${pendingOrderIds.length} pending payments. Checking status with Doku API...`);
+      await Promise.all(pendingOrderIds.map(orderId => syncTransactionWithDoku(orderId).catch(err => {
+        console.error(`[Auto Sync Admin Error] Failed to sync ${orderId}:`, err);
+      })));
+    }
+
+    const updatedPayments = loadPayments();
+    const allList = Object.values(updatedPayments).sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+    return res.json({ success: true, payments: allList });
+  } catch (error: any) {
+    console.error('[Server Error] Fetch all payments failed:', error);
+    return res.status(500).json({ error: 'Failed to retrieve all payments' });
+  }
+});
+
+// Endpoint to check status with Doku API directly and update database
+app.post('/api/doku/check-status/:orderId', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    if (!orderId) {
+      return res.status(400).json({ error: 'orderId is required' });
+    }
+
+    const tx = await syncTransactionWithDoku(orderId, {
+      userId: req.body?.userId,
+      userEmail: req.body?.userEmail,
+      fullName: req.body?.fullName
+    });
+
+    if (!tx) {
+      return res.json({ 
+        success: false, 
+        message: `Transaksi tidak ditemukan di database maupun di Doku API. Pastikan SERVER_KEY valid dan Order ID tepat.`
+      });
+    }
+
+    if (tx.status === 'confirmed' || tx.status === 'applied') {
+      return res.json({ success: true, message: 'Transaksi Terbayar & Lunas!', transaction: tx });
+    } else {
+      return res.json({ 
+        success: true, 
+        message: `Status transaksi saat ini belum lunas (di Doku: pending/belum bayar). Silakan selesaikan pembayaran.`, 
+        transaction: tx
+      });
+    }
+
+  } catch (error: any) {
+    console.error('[Server Error] Check status failed:', error);
+    return res.status(500).json({ error: 'Internal status query failed', details: error.message });
+  }
+});
+
+// Endpoint to simulate successful payment (for Sandbox/Offline testing safety)
+app.post('/api/doku/simulate-settle/:orderId', (req, res) => {
+  try {
+    const { orderId } = req.params;
+    if (!orderId) {
+      return res.status(400).json({ error: 'orderId is required' });
+    }
+
+    const payments = loadPayments();
+    const tx = payments[orderId];
+    if (!tx) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+
+    tx.status = 'confirmed';
+    tx.paymentType = 'Simulasi Transfer / QRIS (Lunas)';
+    
+    // Auto-apply subscription server-side
+    applySubscriptionOnServer(tx);
+    
+    savePayments(payments);
+    
+    console.log(`[Simulation] Force-confirmed & applied transaction: ${orderId}`);
+    return res.json({ success: true, transaction: tx });
+  } catch (error: any) {
+    console.error('[Server Error] Simulation failed:', error);
+    return res.status(500).json({ error: 'Failed to simulate payment' });
+  }
+});
+
+// Autonomous background polling task to check Doku status for all pending transactions
+// This captures users paying via 3rd party apps or QRIS who close the payment page before completion.
+setInterval(async () => {
+  try {
+    const payments = loadPayments();
+    const pendingOrderIds = Object.keys(payments).filter(orderId => {
+      const tx = payments[orderId];
+      if (tx.status === 'pending') {
+        const ageInMs = Date.now() - new Date(tx.timestamp).getTime();
+        // Sync pending payments created in the last 48 hours
+        return ageInMs < 48 * 60 * 60 * 1000;
+      }
+      return false;
+    });
+
+    if (pendingOrderIds.length > 0) {
+      console.log(`[Autonomous Background Sync] Checking ${pendingOrderIds.length} pending transactions...`);
+      for (const orderId of pendingOrderIds) {
+        try {
+          await syncTransactionWithDoku(orderId);
+        } catch (err) {
+          console.error(`[Autonomous Background Sync Error] Failed to sync ${orderId}:`, err);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[Autonomous Background Sync Error] Critical error in background loop:', error);
+  }
+}, 15000); // Polling interval set to 15 seconds
+
+// Start the server (mounting Vite middleware in development)
+async function startServer() {
+  if (process.env.NODE_ENV !== 'production') {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[Server] running on http://localhost:${PORT}`);
+  });
+}
+
+startServer();

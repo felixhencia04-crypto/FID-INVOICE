@@ -1,0 +1,11 @@
+const crypto = require('crypto');
+const body = { order: { invoice_number: "test", amount: 10000 } };
+const clientId = "client-id";
+const secretKey = "secret-key";
+const requestId = "req-123";
+const targetPath = "/checkout/v1/payment";
+const timestamp = new Date().toISOString().slice(0, 19) + "Z";
+const digest = crypto.createHash('sha256').update(JSON.stringify(body)).digest('base64');
+const component = `Client-Id:${clientId}\nRequest-Id:${requestId}\nRequest-Timestamp:${timestamp}\nRequest-Target:${targetPath}\nDigest:${digest}`;
+const signature = 'HMACSHA256=' + crypto.createHmac('sha256', secretKey).update(component).digest('base64');
+console.log(signature);
