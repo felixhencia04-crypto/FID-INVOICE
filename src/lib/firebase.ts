@@ -2,13 +2,13 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 
 const firebaseConfig = {
-  projectId: "watchful-obelisk-rj4jh",
-  appId: "1:1071651225729:web:c87771a868eb4314df8d80",
-  apiKey: "AIzaSyCYMmRZbaO_-H--Gzl4FFAVt_yJBx-yVPg",
-  authDomain: "watchful-obelisk-rj4jh.firebaseapp.com",
-  storageBucket: "watchful-obelisk-rj4jh.firebasestorage.app",
-  messagingSenderId: "1071651225729",
-  measurementId: ""
+  apiKey: "AIzaSyBVBSJFkzaw1PUzDb1CXkuSFbrHFB5xODQ",
+  authDomain: "fid-invoice.firebaseapp.com",
+  projectId: "fid-invoice",
+  storageBucket: "fid-invoice.firebasestorage.app",
+  messagingSenderId: "406345521579",
+  appId: "1:406345521579:web:c6797723f5d09de5821aee",
+  measurementId: "G-3JGTSVQNZG"
 };
 
 export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
