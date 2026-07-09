@@ -4,6 +4,8 @@ import {
   Mail, Lock, User, Briefcase, Phone, CheckCircle, 
   Eye, EyeOff, Shield, ArrowLeft, RefreshCw, AlertCircle, X
 } from 'lucide-react';
+import { signInWithPopup } from 'firebase/auth';
+import { auth, googleProvider } from '../lib/firebase';
 import { UserProfile } from '../types';
 import { sendVerificationEmail, sendPasswordResetEmail, hasResendConfigured } from '../utils/emailService';
 
@@ -57,32 +59,73 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
     }
   }, []);
 
-  const handleGooglePromptSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!googleEmail) {
-      setGooglePromptError('Alamat email Google wajib diisi.');
-      return;
+  
+  const handleGoogleAuth = async () => {
+    try {
+      setIsLoading(true);
+      setErrorMsg('');
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      
+      // Auto-generate user profile based on Google account
+      const fullName = user.displayName || 'Google User';
+      const email = user.email || '';
+      const photoUrl = user.photoURL || '';
+      
+      // Check if user exists or register them
+      // In this local state based app, we just simulate successful login and pass the profile back
+      // Since it's a real Google login, we'll format a UserProfile and return it
+      
+            const isOwnerEmail = email.toLowerCase().trim() === 'felix.hencia04@gmail.com' || email.toLowerCase().trim() === 'admin@fidinvoice.com';
+      const futureDate = new Date();
+      if (isOwnerEmail) {
+        futureDate.setFullYear(futureDate.getFullYear() + 20);
+      } else {
+        futureDate.setDate(futureDate.getDate() + 3);
+      }
+      
+      const userProfile: UserProfile = {
+        id: isOwnerEmail ? 'user-demo' : user.uid,
+        email: email,
+        fullName: fullName,
+        businessName: `Bisnis ${fullName}`,
+        phone: user.phoneNumber || '',
+        profilePicture: photoUrl,
+        subscription: {
+          status: isOwnerEmail ? 'active' : 'trial',
+          plan: isOwnerEmail ? 'enterprise' : selectedPlan,
+          expiryDate: futureDate.toISOString().split('T')[0],
+          trialDaysRemaining: isOwnerEmail ? 0 : 3
+        }
+      };
+      
+      // We must also ensure it's saved to the global user list so loadUserData and admin panel work
+      const allUsers = JSON.parse(localStorage.getItem('fid_invoice_all_users') || '[]');
+      const existingUser = allUsers.find((u: any) => u.email === email);
+      if (existingUser) {
+        onAuthSuccess(existingUser);
+      } else {
+        allUsers.push(userProfile);
+        localStorage.setItem('fid_invoice_all_users', JSON.stringify(allUsers));
+        
+        // Sync to server immediately
+        fetch('/api/users/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user: userProfile })
+        }).catch(err => console.error('Failed to sync new user to server:', err));
+
+        // Dispatch custom window event for instant admin panel real-time sync
+        window.dispatchEvent(new Event('fid_users_updated'));
+        
+        onAuthSuccess(userProfile);
+      }
+    } catch (error: any) {
+      console.error("Google Auth Error:", error);
+      setErrorMsg('Gagal masuk dengan Google: ' + error.message);
+    } finally {
+      setIsLoading(false);
     }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(googleEmail)) {
-      setGooglePromptError('Format alamat email tidak valid.');
-      return;
-    }
-    
-    setGooglePromptError('');
-    setShowGooglePrompt(false);
-    
-    // Pre-fill fields for registration as requested
-    setEmail(googleEmail);
-    
-    // Auto-generate helper info based on Google email
-    const namePart = googleEmail.split('@')[0];
-    const generatedFullName = namePart.charAt(0).toUpperCase() + namePart.slice(1).replace(/[^a-zA-Z]/g, ' ');
-    setFullName(generatedFullName);
-    setBusinessName(`Bisnis ${generatedFullName}`);
-    
-    // Switch to register page
-    setView('register');
   };
 
   // Password strength checker helper
@@ -192,7 +235,7 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
     }, 1000);
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName || !businessName || !email || !phone || !password || !confirmPassword) {
       setErrorMsg('Semua kolom wajib diisi.');
@@ -209,23 +252,40 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
       setErrorType('other');
       return;
     }
+
     setErrorMsg('');
     setErrorType('none');
     setIsLoading(true);
 
-    setTimeout(() => {
-      setIsLoading(false);
-      // Save password to credentials store immediately
-      const storedCreds = localStorage.getItem('fid_invoice_user_credentials') || '{}';
-      const credentials = JSON.parse(storedCreds);
-      credentials[email.toLowerCase().trim()] = password;
-      localStorage.setItem('fid_invoice_user_credentials', JSON.stringify(credentials));
-      
-      // Dispatch real email verification if Resend API is configured
-      sendVerificationEmail(email, fullName, selectedPlan, 'activate');
-      
-      setView('verify');
-    }, 1200);
+    // Save password to credentials store immediately
+    const storedCreds = localStorage.getItem('fid_invoice_user_credentials') || '{}';
+    const credentials = JSON.parse(storedCreds);
+    credentials[email.toLowerCase().trim()] = password;
+    localStorage.setItem('fid_invoice_user_credentials', JSON.stringify(credentials));
+
+    if (hasResendConfigured()) {
+      try {
+        const success = await sendVerificationEmail(email, fullName, selectedPlan, 'activate');
+        setIsLoading(false);
+        if (success) {
+          setView('verify');
+        } else {
+          setErrorMsg('Gagal mengirim email verifikasi. Pastikan konfigurasi Resend Email Anda benar.');
+          setErrorType('other');
+          setView('verify'); // Still allow them to verify via sandbox as fallback
+        }
+      } catch (err) {
+        setIsLoading(false);
+        setErrorMsg('Terjadi kesalahan saat mengirim email verifikasi.');
+        setErrorType('other');
+        setView('verify');
+      }
+    } else {
+      setTimeout(() => {
+        setIsLoading(false);
+        setView('verify');
+      }, 1200);
+    }
   };
 
   const handleVerificationComplete = () => {
@@ -289,7 +349,7 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
     }, 1000);
   };
 
-  const handleForgotSubmit = (e: React.FormEvent) => {
+  const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
       setErrorMsg('Email wajib diisi.');
@@ -300,43 +360,60 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
     setErrorType('none');
     setIsLoading(true);
 
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      // Look up credentials database to ensure email exists or register it on the fly for sandbox
-      let credentials: Record<string, string> = {};
-      const storedCreds = localStorage.getItem('fid_invoice_user_credentials');
-      if (storedCreds) {
-        credentials = JSON.parse(storedCreds);
-      } else {
-        credentials = {
-          'felix.hencia04@gmail.com': 'admin123',
-          'admin@fidinvoice.com': 'admin123',
-          'demo@fidinvoice.com': 'demo123'
-        };
-      }
-      
-      const lowerEmail = email.toLowerCase().trim();
-      if (!(lowerEmail in credentials)) {
-        // Register it with a temporary password so they can reset it!
-        credentials[lowerEmail] = 'temp123';
-        localStorage.setItem('fid_invoice_user_credentials', JSON.stringify(credentials));
-        setSuccessMsg(`Email baru terdeteksi. Sistem sandbox telah mendaftarkan '${email}' secara otomatis agar Anda dapat mensimulasikan pemulihan sandi!`);
-      } else {
-        setSuccessMsg('Email pemulihan kata sandi berhasil dikirim! Silakan buka email simulasi di bawah ini.');
-      }
+    // Look up credentials database to ensure email exists or register it on the fly for sandbox
+    let credentials: Record<string, string> = {};
+    const storedCreds = localStorage.getItem('fid_invoice_user_credentials');
+    if (storedCreds) {
+      credentials = JSON.parse(storedCreds);
+    } else {
+      credentials = {
+        'felix.hencia04@gmail.com': 'admin123',
+        'admin@fidinvoice.com': 'admin123',
+        'demo@fidinvoice.com': 'demo123'
+      };
+    }
 
-      // Dispatch real password reset email if configured
-      sendPasswordResetEmail(email, 'Rekan Bisnis', 'reset');
-      
-      setShowForgotSimulator(true);
-      setSimulatedEmailOpen(false);
-      setResetPasswordSuccess(false);
-      setNewPassword('');
-      setNewConfirmPassword('');
-    }, 1000);
+    const lowerEmail = email.toLowerCase().trim();
+    if (!(lowerEmail in credentials)) {
+      credentials[lowerEmail] = 'temp123';
+      localStorage.setItem('fid_invoice_user_credentials', JSON.stringify(credentials));
+    }
+
+    if (hasResendConfigured()) {
+      try {
+        const success = await sendPasswordResetEmail(email, 'Rekan Bisnis', 'reset');
+        setIsLoading(false);
+        if (success) {
+          setSuccessMsg('Email pemulihan kata sandi berhasil dikirim! Silakan periksa kotak masuk (inbox) atau folder spam email asli Anda.');
+          setShowForgotSimulator(false);
+        } else {
+          setErrorMsg('Gagal mengirim email. Pastikan API Key Resend Anda benar dan domain pengirim telah terverifikasi.');
+          setErrorType('other');
+          // Fallback to sandbox
+          setShowForgotSimulator(true);
+        }
+      } catch (err) {
+        setIsLoading(false);
+        setErrorMsg('Terjadi kesalahan jaringan saat mengirim email.');
+        setErrorType('other');
+        setShowForgotSimulator(true);
+      }
+    } else {
+      setTimeout(() => {
+        setIsLoading(false);
+        if (!(lowerEmail in credentials)) {
+          setSuccessMsg(`Email baru terdeteksi. Sistem sandbox telah mendaftarkan '${email}' secara otomatis agar Anda dapat mensimulasikan pemulihan sandi!`);
+        } else {
+          setSuccessMsg('Email pemulihan kata sandi simulasi siap dibuka di bawah ini.');
+        }
+        setShowForgotSimulator(true);
+        setSimulatedEmailOpen(false);
+        setResetPasswordSuccess(false);
+        setNewPassword('');
+        setNewConfirmPassword('');
+      }, 1000);
+    }
   };
-
   const strength = getPasswordStrength();
 
   return (
@@ -591,11 +668,7 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
               </div>
 
               <button 
-                onClick={() => {
-                  setGoogleEmail('');
-                  setGooglePromptError('');
-                  setShowGooglePrompt(true);
-                }}
+                onClick={handleGoogleAuth}
                 className="w-full bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -766,11 +839,7 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
               </div>
 
               <button 
-                onClick={() => {
-                  setGoogleEmail('');
-                  setGooglePromptError('');
-                  setShowGooglePrompt(true);
-                }}
+                onClick={handleGoogleAuth}
                 className="w-full bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-semibold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -828,7 +897,7 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
                 </button>
               </form>
 
-              {showForgotSimulator && (
+              {showForgotSimulator && !hasResendConfigured() && (
                 <div className="mt-6 pt-6 border-t border-gray-150 text-left">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-mono">📬 Kotak Masuk Simulasi Email ({email})</span>
@@ -1060,148 +1129,39 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
               </div>
 
               {/* Interactive Sandbox Email Inbox Simulator */}
-              <div className="mt-8 pt-6 border-t border-gray-150 text-left">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-mono">📬 Kotak Masuk Simulasi Email ({email || 'budi@perusahaan.com'})</span>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-blue-100 text-blue-800 animate-pulse font-mono">1 Baru</span>
-                </div>
-                
-                {hasResendConfigured() ? (
-                  <div className="mb-3 p-3 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-xl text-[10px] leading-relaxed flex flex-col gap-1">
-                    <span className="font-extrabold flex items-center gap-1 text-[11px]">🔑 INTEGRASI RESEND EMAIL LIVE</span>
-                    <span>Modul Owner Panel mendeteksi API Key Anda terpasang! Email verifikasi asli baru saja dikirim langsung ke <strong>{email}</strong>. Silakan periksa kotak masuk atau spam email asli Anda.</span>
+              {!hasResendConfigured() && (
+                <div className="mt-8 pt-6 border-t border-gray-150 text-left">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-mono">📬 Kotak Masuk Simulasi Email ({email || 'budi@perusahaan.com'})</span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-blue-100 text-blue-800 animate-pulse font-mono">1 Baru</span>
                   </div>
-                ) : (
+                  
                   <div className="mb-3 p-3 bg-amber-50 border border-amber-150 text-amber-700 rounded-xl text-[10px] leading-relaxed flex flex-col gap-1">
                     <span className="font-bold flex items-center gap-1 text-[11px]">🔌 MODE TESTING (SANDBOX)</span>
                     <span>Email simulasi di bawah ini aktif untuk pengujian cepat. Untuk mengaktifkan pengiriman email asli ke inbox user secara otomatis, atur API Key Resend Anda di <strong>Panel Pemilik &gt; Integrasi Email</strong>.</span>
                   </div>
-                )}
-                
-                <div className="bg-amber-50/50 border border-amber-200 rounded-xl p-4 hover:border-brand-primary/30 transition-all cursor-pointer shadow-xs"
-                     onClick={handleVerificationComplete}>
-                  <div className="flex justify-between items-start">
-                    <span className="text-xs font-black text-brand-dark">FID INVOICE</span>
-                    <span className="text-[10px] text-gray-400 font-mono">Baru saja</span>
-                  </div>
-                  <h4 className="text-xs font-bold text-brand-primary mt-1">📧 Verifikasi Akun Bisnis FID INVOICE Anda</h4>
-                  <p className="text-[10px] text-gray-500 mt-1 line-clamp-2 leading-relaxed">
-                    Halo {fullName || 'Pengguna'}, Klik kotak ini untuk langsung memverifikasi email Anda dan mengaktifkan trial 3 hari gratis paket {selectedPlan.toUpperCase()} secara instan!
-                  </p>
-                  <div className="mt-3 flex items-center gap-1 text-[11px] text-brand-primary font-black">
-                    <span>Buka email & verifikasi instan ↗</span>
+                  
+                  <div className="bg-amber-50/50 border border-amber-200 rounded-xl p-4 hover:border-brand-primary/30 transition-all cursor-pointer shadow-xs" 
+                       onClick={handleVerificationComplete}>
+                    <div className="flex justify-between items-start">
+                      <span className="text-xs font-black text-brand-dark">FID INVOICE</span>
+                      <span className="text-[10px] text-gray-400 font-mono">Baru saja</span>
+                    </div>
+                    <h4 className="text-xs font-bold text-brand-primary mt-1">📧 Verifikasi Akun Bisnis FID INVOICE Anda</h4>
+                    <p className="text-[10px] text-gray-500 mt-1 line-clamp-2 leading-relaxed">
+                      Halo {fullName || 'Pengguna'}, Klik kotak ini untuk langsung memverifikasi email Anda dan mengaktifkan trial 3 hari gratis paket {selectedPlan.toUpperCase()} secara instan!
+                    </p>
+                    <div className="mt-3 flex items-center gap-1 text-[11px] text-brand-primary font-black">
+                      <span>Buka email & verifikasi instan ↗</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
           {/* GOOGLE EMAIL PROMPT MODAL */}
-          <AnimatePresence>
-            {showGooglePrompt && (
-              <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-                {/* Backdrop with a subtle blur effect */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  onClick={() => setShowGooglePrompt(false)}
-                  className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
-                />
-
-                {/* Dialog Container */}
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: 15 }}
-                  transition={{ type: 'spring', duration: 0.35 }}
-                  className="relative bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-gray-100 dark:border-slate-800 p-6 sm:p-7 overflow-hidden text-left z-10"
-                >
-                  {/* Close Icon Button */}
-                  <button
-                    onClick={() => setShowGooglePrompt(false)}
-                    className="absolute top-4 right-4 p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-
-                  <div className="space-y-4">
-                    {/* Header */}
-                    <div className="flex gap-3 items-center">
-                      <div className="w-10 h-10 bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-750 rounded-xl flex items-center justify-center shrink-0 shadow-sm">
-                        <svg className="w-5 h-5" viewBox="0 0 24 24">
-                          <path fill="#EA4335" d="M12 5.04c1.66 0 3.12.57 4.28 1.69l3.19-3.19C17.51 1.64 14.96 1 12 1 7.35 1 3.37 3.68 1.48 7.6l3.86 2.99C6.27 7.04 8.91 5.04 12 5.04z" />
-                          <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.27H12v4.51h6.46c-.29 1.48-1.14 2.73-2.4 3.58l3.72 2.88c2.18-2.01 3.71-4.97 3.71-8.7z" />
-                          <path fill="#FBBC05" d="M5.34 14.41c-.24-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29L1.48 6.84C.54 8.71 0 10.79 0 13s.54 4.29 1.48 6.16l3.86-2.75z" />
-                          <path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.91l-3.72-2.88c-1.03.69-2.35 1.11-4.24 1.11-3.09 0-5.73-2-6.66-4.97L1.48 16.1C3.37 20.02 7.35 23 12 23z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h3 className="text-base sm:text-lg font-display font-black text-gray-900 dark:text-white leading-tight">
-                          Masuk dengan Google
-                        </h3>
-                        <p className="text-[10px] text-brand-primary font-mono font-bold uppercase tracking-widest mt-0.5">
-                          Google SSO Gateway
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Description */}
-                    <p className="text-xs text-gray-500 dark:text-slate-400 leading-relaxed">
-                      Silakan masukkan alamat email Google Anda untuk melanjutkan. Anda akan diarahkan ke halaman pendaftaran gratis untuk melengkapi detail akun baru Anda secara instan.
-                    </p>
-
-                    {/* Prompt Form */}
-                    <form onSubmit={handleGooglePromptSubmit} className="space-y-4">
-                      {googlePromptError && (
-                        <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 dark:text-red-400 rounded-xl text-xs font-bold flex items-center gap-2">
-                          <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
-                          <span>{googlePromptError}</span>
-                        </div>
-                      )}
-
-                      <div className="space-y-1">
-                        <label className="block text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-slate-500">
-                          Alamat Email Google Anda
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="email"
-                            value={googleEmail}
-                            onChange={(e) => {
-                              setGoogleEmail(e.target.value);
-                              setGooglePromptError('');
-                            }}
-                            autoFocus
-                            placeholder="nama@gmail.com"
-                            className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-slate-850 dark:bg-slate-950 text-xs sm:text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary font-semibold transition-all"
-                          />
-                          <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-400" />
-                        </div>
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="flex gap-3 pt-2">
-                        <button
-                          type="button"
-                          onClick={() => setShowGooglePrompt(false)}
-                          className="flex-1 py-3 bg-gray-50 hover:bg-gray-100 dark:bg-slate-850 dark:hover:bg-slate-800 text-gray-600 dark:text-slate-300 font-bold text-xs rounded-xl cursor-pointer transition-all uppercase tracking-wider text-center"
-                        >
-                          Batal
-                        </button>
-                        <button
-                          type="submit"
-                          className="flex-1 py-3 bg-brand-primary hover:bg-brand-primary-dark text-white font-black text-xs rounded-xl cursor-pointer transition-all uppercase tracking-wider shadow-md shadow-brand-primary/10 text-center"
-                        >
-                          Lanjutkan
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                </motion.div>
-              </div>
-            )}
-          </AnimatePresence>
+          
 
         </div>
       </div>

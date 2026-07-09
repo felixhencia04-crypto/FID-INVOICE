@@ -132,14 +132,13 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
     setTestEmailError('');
 
     try {
-      const response = await fetch('https://api.resend.com/emails', {
+      const response = await fetch('/api/send-email', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${resendApiKey}`,
           'Content-Type': 'application/json',
         },
-        mode: 'cors',
         body: JSON.stringify({
+          apiKey: resendApiKey,
           from: senderEmail || 'onboarding@resend.dev',
           to: testEmailDest,
           subject: '⚡ Uji Coba Pengiriman Email Integrasi - FID INVOICE',
@@ -172,7 +171,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
         setTestEmailSuccess(true);
       } else {
         const errData = await response.json().catch(() => ({}));
-        setTestEmailError(errData.message || 'Gagal mengirim email. Periksa kembali API Key atau domain pengirim Anda.');
+        setTestEmailError(errData.message || errData.error || 'Gagal mengirim email. Periksa kembali API Key atau domain pengirim Anda.');
       }
     } catch (err: any) {
       setTestEmailError(err.message || 'Terjadi kesalahan jaringan saat mencoba mengirim email.');

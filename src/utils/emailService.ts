@@ -40,14 +40,15 @@ async function dispatchEmail(payload: ResendEmailPayload): Promise<boolean> {
   }
 
   try {
-    const response = await fetch('https://api.resend.com/emails', {
+    const response = await fetch('/api/send-email', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      mode: 'cors',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        apiKey,
+        ...payload
+      }),
     });
 
     if (response.ok) {

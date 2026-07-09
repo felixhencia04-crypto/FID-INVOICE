@@ -505,6 +505,42 @@ app.get('/api/doku/history/:userId', async (req, res) => {
 });
 
 // Endpoint to retrieve all transactions for application owner (admin panel)
+  app.post('/api/send-email', async (req, res) => {
+  try {
+    const { apiKey, from, to, subject, html } = req.body;
+    console.log('[Server] /api/send-email called with from:', from, 'to:', to);
+    if (!apiKey || !from || !to || !subject || !html) {
+      console.log('[Server] /api/send-email missing params');
+      return res.status(400).json({ error: 'Missing required parameters' });
+    }
+
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        from,
+        to,
+        subject,
+        html,
+      }),
+    });
+
+    const data = await response.json();
+    console.log('[Server] Resend API responded with status:', response.status, 'data:', data);
+    if (response.ok) {
+      res.json(data);
+    } else {
+      res.status(response.status).json(data);
+    }
+  } catch (error: any) {
+    console.error('[Server Error] Resend proxy failed:', error);
+    res.status(500).json({ error: 'Failed to send email' });
+  }
+});
+
 app.get('/api/doku/all-payments', async (req, res) => {
   try {
     const payments = loadPayments();
@@ -534,7 +570,9 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+
+
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`[Server] running on http://localhost:${PORT}`);
   });
 }

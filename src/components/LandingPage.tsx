@@ -655,24 +655,24 @@ export default function LandingPage({ onNavigate, onSelectPlan }: LandingPagePro
               </div>
 
               {/* Right Column: High-fidelity interactive mock-up browser */}
-              <div className="lg:col-span-7 bg-slate-50 p-6 sm:p-10 flex flex-col justify-center border-t lg:border-t-0 border-gray-100">
+              <div className="lg:col-span-7 bg-slate-50 p-4 sm:p-10 flex flex-col justify-center border-t lg:border-t-0 border-gray-100 overflow-hidden">
                 <div className="bg-white rounded-2xl shadow-xl border border-gray-150 overflow-hidden w-full flex flex-col animate-fade-in text-left max-h-[600px] overflow-y-auto">
                   
                   {/* Browser simulated bar */}
-                  <div className="bg-gray-100/80 px-4 py-3 border-b border-gray-150 flex items-center justify-between sticky top-0 z-20">
+                  <div className="bg-gray-100/80 px-3 sm:px-4 py-3 border-b border-gray-150 flex items-center justify-between sticky top-0 z-20 gap-2">
                     <div className="flex items-center gap-1.5">
                       <span className="w-2.5 h-2.5 rounded-full bg-red-400"></span>
                       <span className="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
                       <span className="w-2.5 h-2.5 rounded-full bg-green-400"></span>
                     </div>
-                    <div className="bg-white/90 border border-gray-200 px-8 py-0.5 rounded-lg text-[9px] text-gray-400 font-mono select-none">
+                    <div className="bg-white/90 border border-gray-200 px-2 sm:px-8 py-0.5 rounded-lg text-[9px] text-gray-400 font-mono select-none truncate flex-1 text-center mx-2 max-w-[160px] sm:max-w-none">
                       https://app.fidinvoice.com/workspace
                     </div>
-                    <span className="px-2 py-0.5 bg-brand-primary-light text-[9px] font-bold text-brand-primary rounded font-mono uppercase tracking-wider">Demo Live</span>
+                    <span className="hidden sm:inline-block px-2 py-0.5 bg-brand-primary-light text-[9px] font-bold text-brand-primary rounded font-mono uppercase tracking-wider">Demo Live</span>
                   </div>
 
                   {/* Dynamic Tab Panel Content */}
-                  <div className="p-6 space-y-4">
+                  <div className="p-4 sm:p-6 space-y-4">
                     
                     {/* DEMO: QUOTATION TAB */}
                     {activeDemoTab === 'quotation' && (
@@ -680,7 +680,7 @@ export default function LandingPage({ onNavigate, onSelectPlan }: LandingPagePro
                         {!demoQuoteConverted ? (
                           // Shows active penawaran harga
                           <div className="space-y-3">
-                            <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0 pb-2 border-b border-gray-100">
                               <div>
                                 <h4 className="text-xs font-bold text-brand-dark uppercase tracking-wider">Surat Penawaran Harga Resmi</h4>
                                 <p className="text-[10px] text-gray-400 mt-0.5">Diterbitkan oleh: <span className="font-semibold text-slate-700">PT Sinergi Kreatif</span></p>
@@ -688,7 +688,7 @@ export default function LandingPage({ onNavigate, onSelectPlan }: LandingPagePro
                               <span className="px-2 py-1 bg-amber-50 text-amber-600 text-[9px] font-bold rounded-full border border-amber-100">Status: Draf Penawaran</span>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4 text-[10px] bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-[10px] bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                               <div>
                                 <p className="text-gray-400 text-[9px]">Klien Tujuan:</p>
                                 <p className="font-bold text-slate-800">PT Hencia Digital Perkasa</p>
@@ -701,8 +701,8 @@ export default function LandingPage({ onNavigate, onSelectPlan }: LandingPagePro
                               </div>
                             </div>
 
-                            <div className="border border-gray-100 rounded-xl overflow-hidden text-[10px]">
-                              <table className="w-full text-left my-0 border-collapse">
+                            <div className="border border-gray-100 rounded-xl overflow-x-auto text-[10px]">
+                              <table className="w-full text-left my-0 border-collapse min-w-[280px]">
                                 <thead>
                                   <tr className="bg-slate-50 text-slate-500 font-bold">
                                     <th className="p-2 border-none">Deskripsi Jasa</th>
@@ -742,7 +742,7 @@ export default function LandingPage({ onNavigate, onSelectPlan }: LandingPagePro
                               <Sparkles className="w-4 h-4 text-emerald-500" />
                             </div>
 
-                            <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0 pb-2 border-b border-gray-100">
                               <div>
                                 <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1">🧾 INVOICE TAGIHAN RESMI</h4>
                                 <p className="text-[10px] text-gray-400 mt-0.5">Disalin otomatis dari penawaran</p>
@@ -790,7 +790,7 @@ export default function LandingPage({ onNavigate, onSelectPlan }: LandingPagePro
                     {/* DEMO: SHARE ENGINGE TAB */}
                     {activeDemoTab === 'share' && (
                       <div className="space-y-4">
-                        <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0 pb-2 border-b border-gray-100">
                           <div>
                             <h4 className="text-xs font-bold text-brand-dark uppercase tracking-wider">Kirim lewat WhatsApp & Email</h4>
                             <p className="text-[10px] text-gray-400 mt-0.5">Template Aktif: <span className="font-bold text-brand-primary uppercase">{demoTemplate}</span></p>
@@ -864,7 +864,7 @@ export default function LandingPage({ onNavigate, onSelectPlan }: LandingPagePro
                     {/* DEMO: MULTI-PROFILE TAB */}
                     {activeDemoTab === 'multiprofile' && (
                       <div className="space-y-4">
-                        <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0 pb-2 border-b border-gray-100">
                           <div className="flex items-center gap-2">
                             <div className="w-6 h-6 rounded-lg bg-brand-primary flex items-center justify-center text-white font-black text-[10px]">
                               {demoActiveBrand === 'brandA' ? 'SD' : 'CR'}
@@ -976,7 +976,7 @@ export default function LandingPage({ onNavigate, onSelectPlan }: LandingPagePro
                     {/* DEMO: RECEIPTS TAB */}
                     {activeDemoTab === 'receipt' && (
                       <div className="space-y-4">
-                        <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0 pb-2 border-b border-gray-100">
                           <div>
                             <h4 className="text-xs font-bold text-brand-dark uppercase tracking-wider">Kuitansi Pembayaran Sah (Receipt)</h4>
                             <p className="text-[10px] text-gray-400 mt-0.5">Otomatisasi Sistem FID INVOICE</p>
