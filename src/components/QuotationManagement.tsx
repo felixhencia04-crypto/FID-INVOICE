@@ -722,6 +722,19 @@ export default function QuotationManagement({
       let signatureBase64 = sanitizeBase64(preloadedSignatureBase64);
       let stampBase64 = sanitizeBase64(preloadedStampBase64);
 
+      let originalLogoWidth = 300;
+      let originalLogoHeight = 150;
+      if (logoBase64) {
+        const dim = await new Promise<{width: number, height: number}>((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve({ width: img.width, height: img.height });
+          img.onerror = () => resolve({ width: 300, height: 150 });
+          img.src = logoBase64;
+        });
+        originalLogoWidth = dim.width || 300;
+        originalLogoHeight = dim.height || 150;
+      }
+
       // Create PDF instance (A4 size: 210mm x 297mm)
       const doc = new jsPDF({
         orientation: 'portrait',
@@ -768,12 +781,11 @@ export default function QuotationManagement({
       let detailX = 40;
       if (logoBase64) {
         try {
-          const props = doc.getImageProperties(logoBase64);
           const maxW = 40;
           const maxH = 18;
-          const ratio = Math.min(maxW / props.width, maxH / props.height);
-          logoWidth = props.width * ratio;
-          logoHeight = props.height * ratio;
+          const ratio = Math.min(maxW / originalLogoWidth, maxH / originalLogoHeight);
+          logoWidth = originalLogoWidth * ratio;
+          logoHeight = originalLogoHeight * ratio;
 
           const format = getFormatFromBase64(logoBase64);
           doc.addImage(logoBase64, format, 20, startY, logoWidth, logoHeight);

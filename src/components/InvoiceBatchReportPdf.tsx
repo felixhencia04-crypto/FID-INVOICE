@@ -221,6 +221,19 @@ export default function InvoiceBatchReportPdf({
       }
     }
 
+    let originalLogoWidth = 300;
+    let originalLogoHeight = 150;
+    if (logoBase64) {
+      const dim = await new Promise<{width: number, height: number}>((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve({ width: img.width, height: img.height });
+        img.onerror = () => resolve({ width: 300, height: 150 });
+        img.src = logoBase64;
+      });
+      originalLogoWidth = dim.width || 300;
+      originalLogoHeight = dim.height || 150;
+    }
+
     let signatureBase64 = sanitizeBase64(preloadedSignatureBase64);
     if (user.signatureImage && !signatureBase64) {
       try {
@@ -284,12 +297,11 @@ export default function InvoiceBatchReportPdf({
     let headerStartX = margin;
     if (logoBase64) {
       try {
-        const props = doc.getImageProperties(logoBase64);
         const maxW = 32;
         const maxH = 16;
-        const ratio = Math.min(maxW / props.width, maxH / props.height);
-        const logoW = props.width * ratio;
-        const logoH = props.height * ratio;
+        const ratio = Math.min(maxW / originalLogoWidth, maxH / originalLogoHeight);
+        const logoW = originalLogoWidth * ratio;
+        const logoH = originalLogoHeight * ratio;
 
         const format = getFormatFromBase64(logoBase64);
         doc.addImage(logoBase64, format, margin, 10, logoW, logoH);
