@@ -284,9 +284,16 @@ export default function InvoiceBatchReportPdf({
     let headerStartX = margin;
     if (logoBase64) {
       try {
+        const props = doc.getImageProperties(logoBase64);
+        const maxW = 32;
+        const maxH = 16;
+        const ratio = Math.min(maxW / props.width, maxH / props.height);
+        const logoW = props.width * ratio;
+        const logoH = props.height * ratio;
+
         const format = getFormatFromBase64(logoBase64);
-        doc.addImage(logoBase64, format, margin, 10, 24, 12);
-        headerStartX += 28;
+        doc.addImage(logoBase64, format, margin, 10, logoW, logoH);
+        headerStartX += logoW + 4;
       } catch (err) {
         console.error('Error drawing business logo in batch report header:', err);
       }

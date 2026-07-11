@@ -382,9 +382,16 @@ export default function InvoicePreviewPdf({
         // Header
         if (logoBase64) {
           try {
+            const props = doc.getImageProperties(logoBase64);
+            const maxW = 32;
+            const maxH = 14;
+            const ratio = Math.min(maxW / props.width, maxH / props.height);
+            const logoW = props.width * ratio;
+            const logoH = props.height * ratio;
+
             const format = getFormatFromBase64(logoBase64);
             // Draw company logo on the left of the header
-            doc.addImage(logoBase64, format, 25, 21, 24, 12);
+            doc.addImage(logoBase64, format, 25, 21, logoW, logoH);
           } catch (logoErr) {
             console.error('Error drawing logo in receipt PDF:', logoErr);
           }
@@ -575,11 +582,20 @@ export default function InvoicePreviewPdf({
       let logoHeight = 15;
       
       let logoLoaded = false;
+      let detailX = 40;
       if (logoBase64) {
         try {
+          const props = doc.getImageProperties(logoBase64);
+          const maxW = 40;
+          const maxH = 18;
+          const ratio = Math.min(maxW / props.width, maxH / props.height);
+          logoWidth = props.width * ratio;
+          logoHeight = props.height * ratio;
+
           const format = getFormatFromBase64(logoBase64);
           doc.addImage(logoBase64, format, 20, startY, logoWidth, logoHeight);
           logoLoaded = true;
+          detailX = 20 + logoWidth + 8;
         } catch (logoErr) {
           console.error('Error loading logo into PDF, falling back to company initials badge:', logoErr);
         }
@@ -594,10 +610,10 @@ export default function InvoicePreviewPdf({
         doc.setFontSize(12);
         const initials = user.businessName ? user.businessName.substring(0, 2).toUpperCase() : 'CO';
         doc.text(initials, 27.5, startY + 9, { align: 'center' });
+        detailX = 42;
       }
 
       // --- SENDER / COMPANY DETAILS (Left Aligned, offset from logo) ---
-      const detailX = logoLoaded ? 55 : 40;
       
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
