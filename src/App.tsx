@@ -241,6 +241,15 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const printId = params.get('print');
     const isBatchReport = params.get('batchReport') === 'true';
+    const actionParam = params.get('action');
+    const emailParam = params.get('email');
+
+    if (actionParam === 'verify' || actionParam === 'reset') {
+      if (emailParam) {
+        setCurrentPage('auth');
+      }
+      return;
+    }
 
     if (!activeUser && (printId || isBatchReport)) {
       // Find a user who has this invoice or use default DEMO_USER
