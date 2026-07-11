@@ -1010,15 +1010,18 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
                       onSubmit={(e) => {
                         e.preventDefault();
                         if (!newPassword || !newConfirmPassword) {
-                          setSimulatedError('Sandi baru dan konfirmasi wajib diisi!');
+                          setErrorMsg('Sandi baru dan konfirmasi wajib diisi!');
+                          setErrorType('other');
                           return;
                         }
                         if (newPassword.length < 6) {
-                          setSimulatedError('Kata sandi minimal harus 6 karakter demi keamanan!');
+                          setErrorMsg('Kata sandi minimal harus 6 karakter demi keamanan!');
+                          setErrorType('other');
                           return;
                         }
                         if (newPassword !== newConfirmPassword) {
-                          setSimulatedError('Konfirmasi kata sandi tidak cocok. Silakan ulangi.');
+                          setErrorMsg('Konfirmasi kata sandi tidak cocok. Silakan ulangi.');
+                          setErrorType('other');
                           return;
                         }
 
@@ -1028,7 +1031,8 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
                         localStorage.setItem('fid_invoice_user_credentials', JSON.stringify(credentials));
 
                         setPassword(''); 
-                        setSimulatedError('');
+                        setErrorMsg('');
+                        setErrorType('none');
                         setResetPasswordSuccess(true);
                       }}
                       className="space-y-4"
