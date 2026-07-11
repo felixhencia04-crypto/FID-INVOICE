@@ -36,6 +36,8 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
   const [newConfirmPassword, setNewConfirmPassword] = useState('');
   const [resetPasswordSuccess, setResetPasswordSuccess] = useState(false);
   const [simulatedError, setSimulatedError] = useState('');
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [isCreatingPassword, setIsCreatingPassword] = useState(false);
 
   // GOOGLE LOGIN PROMPT STATE
   const [showGooglePrompt, setShowGooglePrompt] = useState(false);
@@ -47,15 +49,30 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
     const params = new URLSearchParams(window.location.search);
     const action = params.get('action');
     const paramEmail = params.get('email');
+    const code = params.get('code');
 
-    if (action === 'verify' && paramEmail) {
+    if (action === 'verify' && paramEmail && code) {
       setEmail(paramEmail);
       setView('verify');
-    } else if (action === 'reset' && paramEmail) {
+      setIsCreatingPassword(true);
+      
+      try {
+        const pendingUsersStr = localStorage.getItem('fid_invoice_pending_users') || '{}';
+        const pendingUsers = JSON.parse(pendingUsersStr);
+        const pending = pendingUsers[paramEmail.toLowerCase().trim()];
+        if (pending) {
+          setFullName(pending.fullName || '');
+          setBusinessName(pending.businessName || '');
+          setPhone(pending.phone || '');
+        }
+      } catch(e) {}
+
+    } else if (action === 'reset' && paramEmail && code) {
       setEmail(paramEmail);
       setView('forgot');
-      setShowForgotSimulator(true);
-      setSimulatedEmailOpen(true);
+      setIsResettingPassword(true);
+      setShowForgotSimulator(false);
+      setSimulatedEmailOpen(false);
     }
   }, []);
 
@@ -66,10 +83,10 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
       setErrorMsg('');
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
+      const email = user.email || '';
       
       // Auto-generate user profile based on Google account
       const fullName = user.displayName || 'Google User';
-      const email = user.email || '';
       const photoUrl = user.photoURL || '';
       
       // Check if user exists or register them
@@ -100,25 +117,64 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
       };
       
       // We must also ensure it's saved to the global user list so loadUserData and admin panel work
-      const allUsers = JSON.parse(localStorage.getItem('fid_invoice_all_users') || '[]');
+      let allUsers: any[] = [];
+      try {
+        const userRes = await fetch('/api/users');
+        if (userRes.ok) {
+          const userData = await userRes.json();
+          if (userData.success && userData.users) {
+            allUsers = userData.users;
+            localStorage.setItem('fid_invoice_all_users', JSON.stringify(allUsers));
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch users from server, falling back to local');
+      }
+
+      if (allUsers.length === 0) {
+        allUsers = JSON.parse(localStorage.getItem('fid_invoice_all_users') || '[]');
+      }
+      
       const existingUser = allUsers.find((u: any) => u.email === email);
       if (existingUser) {
         onAuthSuccess(existingUser);
       } else {
-        allUsers.push(userProfile);
-        localStorage.setItem('fid_invoice_all_users', JSON.stringify(allUsers));
+        // Setup state for verification flow
+        setEmail(email);
+        setFullName(fullName);
+        setBusinessName(`Bisnis ${fullName}`);
+        setPhone(user.phoneNumber || '');
+        setPassword(''); // ensure empty so they can create one
         
-        // Sync to server immediately
-        fetch('/api/users/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user: userProfile })
-        }).catch(err => console.error('Failed to sync new user to server:', err));
+        const pendingUsersStr = localStorage.getItem('fid_invoice_pending_users') || '{}';
+        const pendingUsers = JSON.parse(pendingUsersStr);
+        pendingUsers[email.toLowerCase().trim()] = { fullName, businessName: `Bisnis ${fullName}`, phone: user.phoneNumber || '', plan: selectedPlan };
+        localStorage.setItem('fid_invoice_pending_users', JSON.stringify(pendingUsers));
 
-        // Dispatch custom window event for instant admin panel real-time sync
-        window.dispatchEvent(new Event('fid_users_updated'));
-        
-        onAuthSuccess(userProfile);
+        // Send verification email
+        if (hasResendConfigured()) {
+          try {
+            const success = await sendVerificationEmail(email, fullName, selectedPlan, 'activate');
+            setIsLoading(false);
+            if (success) {
+              setView('verify');
+            } else {
+              setErrorMsg('Gagal mengirim email verifikasi. Pastikan konfigurasi Resend Email Anda benar.');
+              setErrorType('other');
+              setView('verify'); // Still allow them to verify via sandbox as fallback
+            }
+          } catch (err) {
+            setIsLoading(false);
+            setErrorMsg('Terjadi kesalahan saat mengirim email verifikasi.');
+            setErrorType('other');
+            setView('verify');
+          }
+        } else {
+          setTimeout(() => {
+            setIsLoading(false);
+            setView('verify');
+          }, 1200);
+        }
       }
     } catch (error: any) {
       console.error("Google Auth Error:", error);
@@ -136,7 +192,7 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
     return { label: 'Kuat & Aman', color: 'bg-green-500', width: 'w-full' };
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       setErrorMsg('Email dan Password wajib diisi.');
@@ -147,19 +203,35 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
     setErrorType('none');
     setIsLoading(true);
 
-    setTimeout(() => {
-      // Look up or initialize credentials map in localStorage
+    try {
+      // Look up or initialize credentials map in localStorage, prioritizing server sync
       let credentials: Record<string, string> = {};
-      const storedCreds = localStorage.getItem('fid_invoice_user_credentials');
-      if (storedCreds) {
-        credentials = JSON.parse(storedCreds);
-      } else {
-        credentials = {
-          'felix.hencia04@gmail.com': 'admin123',
-          'admin@fidinvoice.com': 'admin123',
-          'demo@fidinvoice.com': 'demo123'
-        };
-        localStorage.setItem('fid_invoice_user_credentials', JSON.stringify(credentials));
+      
+      try {
+        const credRes = await fetch('/api/credentials');
+        if (credRes.ok) {
+          const credData = await credRes.json();
+          if (credData.success && credData.credentials) {
+            credentials = credData.credentials;
+            localStorage.setItem('fid_invoice_user_credentials', JSON.stringify(credentials));
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch credentials from server, falling back to local');
+      }
+
+      if (Object.keys(credentials).length === 0) {
+        const storedCreds = localStorage.getItem('fid_invoice_user_credentials');
+        if (storedCreds) {
+          credentials = JSON.parse(storedCreds);
+        } else {
+          credentials = {
+            'felix.hencia04@gmail.com': 'admin123',
+            'admin@fidinvoice.com': 'admin123',
+            'demo@fidinvoice.com': 'demo123'
+          };
+          localStorage.setItem('fid_invoice_user_credentials', JSON.stringify(credentials));
+        }
       }
 
       const lowerEmail = email.toLowerCase().trim();
@@ -181,10 +253,25 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
       }
 
       // Look up in our simulated user database in localStorage
-      const allUsersStr = localStorage.getItem('fid_invoice_all_users');
       let users: UserProfile[] = [];
-      if (allUsersStr) {
-        users = JSON.parse(allUsersStr);
+      try {
+        const userRes = await fetch('/api/users');
+        if (userRes.ok) {
+          const userData = await userRes.json();
+          if (userData.success && userData.users) {
+            users = userData.users;
+            localStorage.setItem('fid_invoice_all_users', JSON.stringify(users));
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch users from server, falling back to local');
+      }
+
+      if (users.length === 0) {
+        const allUsersStr = localStorage.getItem('fid_invoice_all_users');
+        if (allUsersStr) {
+          users = JSON.parse(allUsersStr);
+        }
       }
 
       // Check if user matches
@@ -212,10 +299,14 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
           users.push(matchedUser);
           localStorage.setItem('fid_invoice_all_users', JSON.stringify(users));
         } else {
-          // Explicitly refuse access to deleted accounts
+          // User exists in credentials but not in allUsers, which means they are unverified
           setIsLoading(false);
           setErrorType('other');
-          setErrorMsg('Akun Anda tidak ditemukan atau sudah dihapus secara permanen dari sistem oleh Pemilik Aplikasi.');
+          setErrorMsg('Akun Anda tidak ditemukan atau sudah dihapus. Jika akun Anda telah dihapus oleh Administrator, Anda wajib mendaftar kembali sebagai akun baru.');
+          
+          // Clean up orphaned credentials locally
+          delete credentials[lowerEmail];
+          localStorage.setItem('fid_invoice_user_credentials', JSON.stringify(credentials));
           return;
         }
       }
@@ -232,18 +323,18 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
       setErrorType('none');
       setErrorMsg('');
       onAuthSuccess(matchedUser);
-    }, 1000);
+    } catch (error) {
+      console.error('Login error:', error);
+      setIsLoading(false);
+      setErrorType('other');
+      setErrorMsg('Terjadi kesalahan saat masuk. Silakan coba lagi.');
+    }
   };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName || !businessName || !email || !phone || !password || !confirmPassword) {
+    if (!fullName || !businessName || !email || !phone) {
       setErrorMsg('Semua kolom wajib diisi.');
-      setErrorType('other');
-      return;
-    }
-    if (password !== confirmPassword) {
-      setErrorMsg('Konfirmasi password tidak cocok.');
       setErrorType('other');
       return;
     }
@@ -257,38 +348,90 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
     setErrorType('none');
     setIsLoading(true);
 
-    // Save password to credentials store immediately
-    const storedCreds = localStorage.getItem('fid_invoice_user_credentials') || '{}';
-    const credentials = JSON.parse(storedCreds);
-    credentials[email.toLowerCase().trim()] = password;
-    localStorage.setItem('fid_invoice_user_credentials', JSON.stringify(credentials));
-
-    if (hasResendConfigured()) {
+    try {
+      // Check if user already exists
+      let allUsers: any[] = [];
       try {
-        const success = await sendVerificationEmail(email, fullName, selectedPlan, 'activate');
-        setIsLoading(false);
-        if (success) {
-          setView('verify');
-        } else {
-          setErrorMsg('Gagal mengirim email verifikasi. Pastikan konfigurasi Resend Email Anda benar.');
-          setErrorType('other');
-          setView('verify'); // Still allow them to verify via sandbox as fallback
+        const userRes = await fetch('/api/users');
+        if (userRes.ok) {
+          const userData = await userRes.json();
+          if (userData.success && userData.users) {
+            allUsers = userData.users;
+            localStorage.setItem('fid_invoice_all_users', JSON.stringify(allUsers));
+          }
         }
       } catch (err) {
-        setIsLoading(false);
-        setErrorMsg('Terjadi kesalahan saat mengirim email verifikasi.');
-        setErrorType('other');
-        setView('verify');
+        console.warn('Could not fetch users from server, falling back to local');
       }
-    } else {
-      setTimeout(() => {
+
+      if (allUsers.length === 0) {
+        allUsers = JSON.parse(localStorage.getItem('fid_invoice_all_users') || '[]');
+      }
+
+      const existingUser = allUsers.find(u => u.email.toLowerCase().trim() === email.toLowerCase().trim());
+      if (existingUser) {
         setIsLoading(false);
-        setView('verify');
-      }, 1200);
+        setErrorMsg('Email ini sudah terdaftar dan aktif. Silakan masuk (Login) menggunakan email ini.');
+        setErrorType('other');
+        return;
+      }
+
+      // Store pending info instead of password
+      const pendingUsersStr = localStorage.getItem('fid_invoice_pending_users') || '{}';
+      const pendingUsers = JSON.parse(pendingUsersStr);
+      pendingUsers[email.toLowerCase().trim()] = { fullName, businessName, phone, plan: selectedPlan };
+      localStorage.setItem('fid_invoice_pending_users', JSON.stringify(pendingUsers));
+
+      if (hasResendConfigured()) {
+        try {
+          const success = await sendVerificationEmail(email, fullName, selectedPlan, 'activate');
+          setIsLoading(false);
+          if (success) {
+            setView('verify');
+          } else {
+            setErrorMsg('Gagal mengirim email verifikasi. Pastikan konfigurasi Resend Email Anda benar.');
+            setErrorType('other');
+            setView('verify'); // Still allow them to verify via sandbox as fallback
+          }
+        } catch (err) {
+          setIsLoading(false);
+          setErrorMsg('Terjadi kesalahan saat mengirim email verifikasi.');
+          setErrorType('other');
+          setView('verify');
+        }
+      } else {
+        setTimeout(() => {
+          setIsLoading(false);
+          setView('verify');
+        }, 1200);
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      setIsLoading(false);
+      setErrorMsg('Terjadi kesalahan sistem.');
+      setErrorType('other');
     }
   };
 
   const handleVerificationComplete = () => {
+    if (isCreatingPassword) {
+      if (!password || !confirmPassword) {
+        setErrorMsg('Kata sandi wajib diisi.');
+        setErrorType('other');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setErrorMsg('Konfirmasi password tidak cocok.');
+        setErrorType('other');
+        return;
+      }
+      if (password.length < 6) {
+        setErrorMsg('Kata sandi minimal harus 6 karakter.');
+        setErrorType('other');
+        return;
+      }
+    }
+
     setIsLoading(true);
     setTimeout(() => {
       setIsLoading(false);
@@ -320,6 +463,8 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
       if (allUsersStr) {
         users = JSON.parse(allUsersStr);
       }
+      // Remove any existing user with the same email (in case of stale local storage after deletion)
+      users = users.filter(u => u.email.toLowerCase().trim() !== email.toLowerCase().trim());
       users.push(newUser);
       localStorage.setItem('fid_invoice_all_users', JSON.stringify(users));
 
@@ -763,54 +908,6 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
                     <Phone className="absolute left-3.5 top-3 w-4.5 h-4.5 text-gray-400" />
                   </div>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Kata Sandi</label>
-                  <div className="relative">
-                    <input 
-                      type={showPassword ? "text" : "password"} 
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Minimal 6 karakter" 
-                      className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 outline-none transition-all"
-                    />
-                    <Lock className="absolute left-3.5 top-3 w-4.5 h-4.5 text-gray-400" />
-                    <button 
-                      type="button" 
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3.5 top-3 text-gray-400 hover:text-gray-600"
-                    >
-                      {showPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
-                    </button>
-                  </div>
-                  {/* Strength indicator */}
-                  {password && (
-                    <div className="mt-1.5 space-y-1">
-                      <div className="flex justify-between items-center text-[10px] text-gray-500">
-                        <span>Kekuatan Password:</span>
-                        <span className="font-bold">{strength.label}</span>
-                      </div>
-                      <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
-                        <div className={`h-full ${strength.color} ${strength.width} transition-all duration-300`}></div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Konfirmasi Kata Sandi</label>
-                  <div className="relative">
-                    <input 
-                      type="password" 
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Masukkan kembali kata sandi" 
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 outline-none transition-all"
-                    />
-                    <Lock className="absolute left-3.5 top-3 w-4.5 h-4.5 text-gray-400" />
-                  </div>
-                </div>
-
                 <div className="py-1">
                   <label className="flex items-start gap-2.5 text-xs text-gray-600 cursor-pointer">
                     <input 
@@ -866,38 +963,156 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
           {/* VIEW: FORGOT PASSWORD */}
           {view === 'forgot' && (
             <div className="space-y-6">
-              <div>
-                <h3 className="text-2xl font-display font-extrabold text-brand-dark">Lupa Kata Sandi?</h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  Masukkan email Anda untuk menerima link pemulihan kata sandi.
-                </p>
-              </div>
-
-              <form onSubmit={handleForgotSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Email Terdaftar</label>
-                  <div className="relative">
-                    <input 
-                      type="email" 
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="budi@perusahaan.com" 
-                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 outline-none transition-all"
-                    />
-                    <Mail className="absolute left-3.5 top-3.5 w-4.5 h-4.5 text-gray-400" />
+              {!isResettingPassword ? (
+                <>
+                  <div>
+                    <h3 className="text-2xl font-display font-extrabold text-brand-dark">Lupa Kata Sandi?</h3>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Masukkan email Anda untuk menerima link pemulihan kata sandi.
+                    </p>
                   </div>
+
+                  <form onSubmit={handleForgotSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Email Terdaftar</label>
+                      <div className="relative">
+                        <input 
+                          type="email" 
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="budi@perusahaan.com" 
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 outline-none transition-all"
+                        />
+                        <Mail className="absolute left-3.5 top-3.5 w-4.5 h-4.5 text-gray-400" />
+                      </div>
+                    </div>
+
+                    <button 
+                      type="submit" 
+                      disabled={isLoading}
+                      className="w-full bg-brand-primary hover:bg-brand-primary-dark text-white font-bold py-3.5 px-4 rounded-xl text-sm transition-all shadow-lg shadow-brand-primary/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70"
+                    >
+                      {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Kirim Link Reset'}
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <div className="text-left space-y-4">
+                  <div className="text-center mb-6">
+                    <h3 className="text-2xl font-display font-extrabold text-brand-dark">Atur Ulang Kata Sandi</h3>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Silakan buat kata sandi baru untuk akun <span className="font-bold text-brand-primary">{email}</span>
+                    </p>
+                  </div>
+
+                  {!resetPasswordSuccess ? (
+                    <form 
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!newPassword || !newConfirmPassword) {
+                          setSimulatedError('Sandi baru dan konfirmasi wajib diisi!');
+                          return;
+                        }
+                        if (newPassword.length < 6) {
+                          setSimulatedError('Kata sandi minimal harus 6 karakter demi keamanan!');
+                          return;
+                        }
+                        if (newPassword !== newConfirmPassword) {
+                          setSimulatedError('Konfirmasi kata sandi tidak cocok. Silakan ulangi.');
+                          return;
+                        }
+
+                        const storedCreds = localStorage.getItem('fid_invoice_user_credentials') || '{}';
+                        const credentials = JSON.parse(storedCreds);
+                        credentials[email.toLowerCase().trim()] = newPassword;
+                        localStorage.setItem('fid_invoice_user_credentials', JSON.stringify(credentials));
+
+                        setPassword(''); 
+                        setSimulatedError('');
+                        setResetPasswordSuccess(true);
+                      }}
+                      className="space-y-4"
+                    >
+                      <div>
+                        <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Kata Sandi Baru</label>
+                        <div className="relative">
+                          <input 
+                            type={showPassword ? "text" : "password"} 
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            placeholder="Minimal 6 karakter" 
+                            className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 outline-none transition-all"
+                          />
+                          <Lock className="absolute left-3.5 top-3 w-4.5 h-4.5 text-gray-400" />
+                          <button 
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3.5 top-3 text-gray-400 hover:text-brand-primary transition-colors cursor-pointer"
+                          >
+                            {showPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Konfirmasi Kata Sandi Baru</label>
+                        <div className="relative">
+                          <input 
+                            type={showPassword ? "text" : "password"} 
+                            value={newConfirmPassword}
+                            onChange={(e) => setNewConfirmPassword(e.target.value)}
+                            placeholder="Ulangi kata sandi" 
+                            className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 outline-none transition-all"
+                          />
+                          <Lock className="absolute left-3.5 top-3 w-4.5 h-4.5 text-gray-400" />
+                        </div>
+                      </div>
+
+                      {simulatedError && (
+                        <div className="p-3 bg-red-50 border border-red-150 rounded-xl text-xs text-red-600 font-semibold flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                          <span>{simulatedError}</span>
+                        </div>
+                      )}
+
+                      <button 
+                        type="submit"
+                        className="w-full bg-brand-primary hover:bg-brand-primary-dark text-white font-bold py-3.5 px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer mt-4"
+                      >
+                        Simpan Kata Sandi Baru
+                      </button>
+                    </form>
+                  ) : (
+                    <div className="text-center py-6 space-y-4 bg-gray-50 border border-gray-100 rounded-2xl">
+                      <div className="w-16 h-16 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto shadow-inner">
+                        <CheckCircle className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-gray-800 text-lg">Berhasil!</h4>
+                        <p className="text-sm text-gray-500 mt-1 px-4">
+                          Kata sandi Anda telah berhasil diperbarui dengan aman.
+                        </p>
+                      </div>
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setView('login');
+                            setIsResettingPassword(false);
+                            setResetPasswordSuccess(false);
+                            setSuccessMsg('Kata sandi berhasil diperbarui! Silakan masuk dengan kata sandi baru Anda.');
+                          }}
+                          className="px-6 py-2.5 bg-brand-primary hover:bg-brand-primary-dark text-white rounded-xl text-sm font-bold transition-colors cursor-pointer"
+                        >
+                          Lanjut untuk Masuk
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
+              )}
 
-                <button 
-                  type="submit" 
-                  disabled={isLoading}
-                  className="w-full bg-brand-primary hover:bg-brand-primary-dark text-white font-bold py-3.5 px-4 rounded-xl text-sm transition-all shadow-lg shadow-brand-primary/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70"
-                >
-                  {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Kirim Link Reset'}
-                </button>
-              </form>
-
-              {showForgotSimulator && !hasResendConfigured() && (
+              {showForgotSimulator && (
                 <div className="mt-6 pt-6 border-t border-gray-150 text-left">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-mono">📬 Kotak Masuk Simulasi Email ({email})</span>
@@ -907,9 +1122,9 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
                   </div>
                   
                   {hasResendConfigured() ? (
-                    <div className="mb-3 p-3 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-xl text-[10px] leading-relaxed flex flex-col gap-1">
-                      <span className="font-extrabold flex items-center gap-1 text-[11px]">🔑 INTEGRASI RESEND EMAIL LIVE</span>
-                      <span>Modul Owner Panel mendeteksi API Key Anda terpasang! Email pemulihan kata sandi asli baru saja dikirim langsung ke <strong>{email}</strong>. Silakan periksa inbox asli Anda.</span>
+                    <div className="mb-3 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-[10px] leading-relaxed flex flex-col gap-1">
+                      <span className="font-extrabold flex items-center gap-1 text-[11px]">⚠️ PENGIRIMAN EMAIL GAGAL (FALLBACK)</span>
+                      <span>Modul mendeteksi API Key, namun pengiriman gagal. Pastikan API Key benar dan domain Anda telah diverifikasi di Resend. Sementara itu, kami menampilkan kotak masuk simulasi di bawah ini agar Anda tetap bisa melanjutkan pemulihan sandi.</span>
                     </div>
                   ) : (
                     <div className="mb-3 p-3 bg-amber-50 border border-amber-150 text-amber-700 rounded-xl text-[10px] leading-relaxed flex flex-col gap-1">
@@ -1092,57 +1307,126 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
           {view === 'verify' && (
             <div className="space-y-6 text-center">
               <div className="w-16 h-16 rounded-full bg-brand-primary-light text-brand-primary flex items-center justify-center mx-auto mb-6 shadow-inner">
-                <Mail className="w-8 h-8" />
+                {isCreatingPassword ? <Lock className="w-8 h-8" /> : <Mail className="w-8 h-8" />}
               </div>
 
-              <div>
-                <h3 className="text-2xl font-display font-extrabold text-brand-dark">Verifikasi Email Anda</h3>
-                <p className="text-sm text-gray-500 mt-2">
-                  Kami telah mengirimkan link verifikasi akun ke:
-                </p>
-                <p className="text-sm font-bold text-brand-primary mt-1">{email || 'email@bisnis.com'}</p>
-                <p className="text-xs text-gray-400 mt-4 leading-relaxed">
-                  Silakan periksa folder kotak masuk atau spam email Anda. Klik link di dalam email tersebut untuk mengaktifkan akun Anda.
-                </p>
-              </div>
+              {!isCreatingPassword ? (
+                <>
+                  <div>
+                    <h3 className="text-2xl font-display font-extrabold text-brand-dark">Verifikasi Email Anda</h3>
+                    <p className="text-sm text-gray-500 mt-2">
+                      Kami telah mengirimkan link verifikasi akun ke:
+                    </p>
+                    <p className="text-sm font-bold text-brand-primary mt-1">{email || 'email@bisnis.com'}</p>
+                    <p className="text-xs text-gray-400 mt-4 leading-relaxed">
+                      Silakan periksa folder kotak masuk atau spam email Anda. Klik link di dalam email tersebut untuk mengaktifkan akun Anda.
+                    </p>
+                  </div>
 
-              <div className="space-y-3 pt-4">
-                <button 
-                  onClick={handleVerificationComplete}
-                  className="w-full bg-brand-primary hover:bg-brand-primary-dark text-white font-bold py-3 px-4 rounded-xl text-sm shadow-md transition-transform active:scale-95 cursor-pointer"
-                >
-                  Saya Sudah Memverifikasi Email
-                </button>
+                  <div className="space-y-3 pt-4">
+                    <button 
+                      onClick={() => setIsCreatingPassword(true)}
+                      className="w-full bg-brand-primary hover:bg-brand-primary-dark text-white font-bold py-3 px-4 rounded-xl text-sm shadow-md transition-transform active:scale-95 cursor-pointer"
+                    >
+                      Saya Sudah Memverifikasi Email
+                    </button>
 
-                <p className="text-xs text-gray-500">
-                  Tidak menerima email?{' '}
-                  <button 
-                    onClick={() => {
-                      setSuccessMsg('Email verifikasi ulang berhasil dikirim!');
-                      setTimeout(() => setSuccessMsg(''), 3000);
-                    }}
-                    className="text-brand-primary font-bold hover:underline cursor-pointer"
-                  >
-                    Kirim Ulang
-                  </button>
-                </p>
-              </div>
+                    <p className="text-xs text-gray-500">
+                      Tidak menerima email?{' '}
+                      <button 
+                        onClick={() => {
+                          setSuccessMsg('Email verifikasi ulang berhasil dikirim!');
+                          setTimeout(() => setSuccessMsg(''), 3000);
+                        }}
+                        className="text-brand-primary font-bold hover:underline cursor-pointer"
+                      >
+                        Kirim Ulang
+                      </button>
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="text-left space-y-4">
+                  <div className="text-center mb-6">
+                    <h3 className="text-2xl font-display font-extrabold text-brand-dark">Buat Kata Sandi</h3>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Email berhasil diverifikasi. Silakan buat kata sandi untuk akun <span className="font-bold text-brand-primary">{email}</span>
+                    </p>
+                  </div>
+
+                  <form onSubmit={(e) => { e.preventDefault(); handleVerificationComplete(); }} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Kata Sandi Baru</label>
+                      <div className="relative">
+                        <input 
+                          type={showPassword ? "text" : "password"} 
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="Minimal 6 karakter" 
+                          className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 outline-none transition-all"
+                        />
+                        <Lock className="absolute left-3.5 top-3 w-4.5 h-4.5 text-gray-400" />
+                        <button 
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3.5 top-3 text-gray-400 hover:text-brand-primary transition-colors cursor-pointer"
+                        >
+                          {showPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Konfirmasi Kata Sandi Baru</label>
+                      <div className="relative">
+                        <input 
+                          type={showPassword ? "text" : "password"} 
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Ulangi kata sandi" 
+                          className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 outline-none transition-all"
+                        />
+                        <Lock className="absolute left-3.5 top-3 w-4.5 h-4.5 text-gray-400" />
+                      </div>
+                    </div>
+
+                    <button 
+                      type="submit"
+                      disabled={isLoading}
+                      className="w-full bg-brand-primary hover:bg-brand-primary-dark text-white font-bold py-3.5 px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer mt-4"
+                    >
+                      {isLoading ? (
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        'Aktifkan Akun & Masuk'
+                      )}
+                    </button>
+                  </form>
+                </div>
+              )}
 
               {/* Interactive Sandbox Email Inbox Simulator */}
-              {!hasResendConfigured() && (
+              {(errorMsg.includes('Gagal mengirim') || !hasResendConfigured()) && (
                 <div className="mt-8 pt-6 border-t border-gray-150 text-left">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-mono">📬 Kotak Masuk Simulasi Email ({email || 'budi@perusahaan.com'})</span>
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-blue-100 text-blue-800 animate-pulse font-mono">1 Baru</span>
                   </div>
                   
-                  <div className="mb-3 p-3 bg-amber-50 border border-amber-150 text-amber-700 rounded-xl text-[10px] leading-relaxed flex flex-col gap-1">
-                    <span className="font-bold flex items-center gap-1 text-[11px]">🔌 MODE TESTING (SANDBOX)</span>
-                    <span>Email simulasi di bawah ini aktif untuk pengujian cepat. Untuk mengaktifkan pengiriman email asli ke inbox user secara otomatis, atur API Key Resend Anda di <strong>Panel Pemilik &gt; Integrasi Email</strong>.</span>
-                  </div>
+                  {hasResendConfigured() ? (
+                    <div className="mb-3 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-[10px] leading-relaxed flex flex-col gap-1">
+                      <span className="font-extrabold flex items-center gap-1 text-[11px]">⚠️ PENGIRIMAN EMAIL GAGAL (FALLBACK)</span>
+                      <span>Modul mendeteksi API Key, namun pengiriman gagal. Pastikan API Key benar dan domain Anda telah diverifikasi di Resend. Sementara itu, kami menampilkan kotak masuk simulasi di bawah ini agar Anda tetap bisa melakukan verifikasi manual.</span>
+                    </div>
+                  ) : (
+                    <div className="mb-3 p-3 bg-amber-50 border border-amber-150 text-amber-700 rounded-xl text-[10px] leading-relaxed flex flex-col gap-1">
+                      <span className="font-bold flex items-center gap-1 text-[11px]">🔌 MODE TESTING (SANDBOX)</span>
+                      <span>Email simulasi di bawah ini aktif untuk pengujian cepat. Untuk mengaktifkan pengiriman email asli ke inbox user secara otomatis, atur API Key Resend Anda di <strong>Panel Pemilik &gt; Integrasi Email</strong>.</span>
+                    </div>
+                  )}
                   
                   <div className="bg-amber-50/50 border border-amber-200 rounded-xl p-4 hover:border-brand-primary/30 transition-all cursor-pointer shadow-xs" 
-                       onClick={handleVerificationComplete}>
+                       onClick={() => setIsCreatingPassword(true)}>
                     <div className="flex justify-between items-start">
                       <span className="text-xs font-black text-brand-dark">FID INVOICE</span>
                       <span className="text-[10px] text-gray-400 font-mono">Baru saja</span>
