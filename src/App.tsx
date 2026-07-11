@@ -245,9 +245,7 @@ export default function App() {
     const emailParam = params.get('email');
 
     if (actionParam === 'verify' || actionParam === 'reset') {
-      if (emailParam) {
-        setCurrentPage('auth');
-      }
+      setCurrentPage('auth');
       return;
     }
 

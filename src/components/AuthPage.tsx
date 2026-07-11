@@ -67,8 +67,8 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
         }
       } catch(e) {}
 
-    } else if (action === 'reset' && paramEmail && code) {
-      setEmail(paramEmail);
+    } else if (action === 'reset') {
+      if (paramEmail) setEmail(paramEmail);
       setView('forgot');
       setIsResettingPassword(true);
       setShowForgotSimulator(false);
@@ -1030,6 +1030,12 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
                         credentials[email.toLowerCase().trim()] = newPassword;
                         localStorage.setItem('fid_invoice_user_credentials', JSON.stringify(credentials));
 
+                        fetch('/api/credentials/sync', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ credentials })
+                        }).catch(err => console.error('Failed to sync credentials to server:', err));
+
                         setPassword(''); 
                         setErrorMsg('');
                         setErrorType('none');
@@ -1206,6 +1212,12 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
                               const credentials = JSON.parse(storedCreds);
                               credentials[email.toLowerCase().trim()] = newPassword;
                               localStorage.setItem('fid_invoice_user_credentials', JSON.stringify(credentials));
+
+                              fetch('/api/credentials/sync', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ credentials })
+                              }).catch(err => console.error('Failed to sync credentials to server:', err));
 
                               // Pre-fill fields for ease of test
                               setPassword(''); 
