@@ -163,9 +163,9 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
               setErrorType('other');
               setView('verify'); // Still allow them to verify via sandbox as fallback
             }
-          } catch (err) {
+          } catch (err: any) {
             setIsLoading(false);
-            setErrorMsg('Terjadi kesalahan saat mengirim email verifikasi.');
+            setErrorMsg(`Gagal mengirim email verifikasi: ${err.message}`);
             setErrorType('other');
             setView('verify');
           }
@@ -393,9 +393,9 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
             setErrorType('other');
             setView('verify'); // Still allow them to verify via sandbox as fallback
           }
-        } catch (err) {
+        } catch (err: any) {
           setIsLoading(false);
-          setErrorMsg('Terjadi kesalahan saat mengirim email verifikasi.');
+          setErrorMsg(`Gagal mengirim email verifikasi: ${err.message}`);
           setErrorType('other');
           setView('verify');
         }
@@ -537,9 +537,9 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
           // Fallback to sandbox
           setShowForgotSimulator(true);
         }
-      } catch (err) {
+      } catch (err: any) {
         setIsLoading(false);
-        setErrorMsg('Terjadi kesalahan jaringan saat mengirim email.');
+        setErrorMsg(`Gagal mengirim email: ${err.message}`);
         setErrorType('other');
         setShowForgotSimulator(true);
       }

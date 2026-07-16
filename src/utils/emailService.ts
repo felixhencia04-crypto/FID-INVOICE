@@ -57,11 +57,12 @@ async function dispatchEmail(payload: ResendEmailPayload): Promise<boolean> {
     } else {
       const errResponse = await response.json().catch(() => ({}));
       console.error('Resend API Error response:', errResponse);
-      return false;
+      const errMsg = errResponse.message || errResponse.error?.message || 'Terjadi kesalahan sistem pada API Resend.';
+      throw new Error(errMsg);
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to dispatch email via Resend API:', error);
-    return false;
+    throw error;
   }
 }
 
