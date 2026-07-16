@@ -545,6 +545,9 @@ app.post('/api/send-email', async (req, res) => {
     if (!apiKey && config.resendApiKey) apiKey = config.resendApiKey;
     if (!apiKey && process.env.RESEND_API_KEY) apiKey = process.env.RESEND_API_KEY;
     if (!from && config.resendSender) from = config.resendSender;
+    if (from && !from.includes('<')) {
+      from = `FID INVOICE <${from}>`;
+    }
 
     const maskedKey = apiKey ? `${apiKey.substring(0, 7)}...${apiKey.substring(apiKey.length - 4)}` : 'MISSING';
     console.log(`[Server] /api/send-email called with from: ${from}, to: ${to}, apiKey: ${maskedKey}`);
