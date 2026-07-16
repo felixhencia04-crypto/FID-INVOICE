@@ -4,6 +4,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import fs from 'fs';
+import { Resend } from 'resend';
 
 // Load environment variables
 dotenv.config();
@@ -550,27 +551,21 @@ app.post('/api/send-email', async (req, res) => {
       return res.status(400).json({ error: 'Missing required parameters. Make sure Resend API Key is set in Admin Panel.' });
     }
 
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        from,
-        to: Array.isArray(to) ? to : [to],
-        subject,
-        html,
-      }),
+    const resend = new Resend(apiKey);
+    const { data, error } = await resend.emails.send({
+      from,
+      to: Array.isArray(to) ? to : [to],
+      subject,
+      html,
     });
 
-    const data = await response.json();
-    console.log('[Server] Resend API responded with status:', response.status, 'data:', data);
-    if (response.ok) {
-      res.json(data);
-    } else {
-      res.status(response.status).json(data);
+    if (error) {
+      console.error('[Server] Resend SDK Error:', error);
+      return res.status(400).json(error);
     }
+
+    console.log('[Server] Resend SDK responded successfully:', data);
+    return res.status(200).json(data);
   } catch (error: any) {
     console.error('[Server Error] Resend proxy failed:', error);
     res.status(500).json({ error: 'Failed to send email' });

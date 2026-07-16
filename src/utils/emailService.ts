@@ -28,27 +28,19 @@ export const getResendConfig = () => {
 };
 
 export const hasResendConfigured = (): boolean => {
-  const { apiKey } = getResendConfig();
-  return !!apiKey && apiKey !== 're_';
+  return true; // We now let the server check config and decide.
 };
 
 async function dispatchEmail(payload: ResendEmailPayload): Promise<boolean> {
-  const { apiKey } = getResendConfig();
-  if (!apiKey) {
-    console.warn('Resend API Key is not configured in local storage. Falling back to sandbox simulator.');
-    return false;
-  }
-
+  // We no longer require the client to provide the API key.
+  // The server will use its globally saved config.
   try {
     const response = await fetch('/api/send-email', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        apiKey,
-        ...payload
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (response.ok) {
