@@ -522,7 +522,7 @@ app.get('/api/doku/history/:userId', async (req, res) => {
       },
       body: JSON.stringify({
         from,
-        to,
+        to: Array.isArray(to) ? to : [to],
         subject,
         html,
       }),

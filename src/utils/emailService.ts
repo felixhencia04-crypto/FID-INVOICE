@@ -24,7 +24,7 @@ export const getResendConfig = () => {
     localStorage.setItem('fid_invoice_resend_sender', sender);
   }
   
-  return { apiKey, sender };
+  return { apiKey: apiKey.trim(), sender: sender.trim() };
 };
 
 export const hasResendConfigured = (): boolean => {
@@ -113,7 +113,7 @@ export async function sendVerificationEmail(
 
   return dispatchEmail({
     from: sender,
-    to: toEmail,
+    to: toEmail.trim(),
     subject: '📧 Verifikasi Akun Bisnis FID INVOICE Anda',
     html: htmlContent,
   });
@@ -166,7 +166,7 @@ export async function sendPasswordResetEmail(
 
   return dispatchEmail({
     from: sender,
-    to: toEmail,
+    to: toEmail.trim(),
     subject: '🔑 Atur Ulang Kata Sandi Akun FID INVOICE',
     html: htmlContent,
   });
