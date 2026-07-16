@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Invoice, Client, Product, InvoiceItem, UserProfile } from '../types';
 import { formatCurrency, terbilang, calculateDueDate, generateRandomId } from '../utils';
+import { preloadCompanyAssets } from '../utils/assetHelper';
 import { showToast } from '../utils/toast';
 
 interface CreateInvoiceProps {
@@ -63,6 +64,38 @@ export default function CreateInvoice({
   // Step 3: Template state
   const [templateId, setTemplateId] = useState<Invoice['templateId']>('corporate');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Preload Assets State
+  const [preloadedLogoBase64, setPreloadedLogoBase64] = useState<string>('');
+  const [preloadedSignatureBase64, setPreloadedSignatureBase64] = useState<string>('');
+  const [preloadedStampBase64, setPreloadedStampBase64] = useState<string>('');
+  const [isPreloadingAssets, setIsPreloadingAssets] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const loadImages = async () => {
+      console.log('[CreateInvoice] Preloading company assets...');
+      try {
+        const assets = await preloadCompanyAssets(user);
+        if (active) {
+          setPreloadedLogoBase64(assets.businessLogo);
+          setPreloadedSignatureBase64(assets.signatureImage);
+          setPreloadedStampBase64(assets.stampImage);
+        }
+      } catch (e) {
+        console.error('[CreateInvoice] Error preloading profile assets:', e);
+      } finally {
+        if (active) {
+          setIsPreloadingAssets(false);
+        }
+      }
+    };
+    loadImages();
+    return () => {
+      active = false;
+    };
+  }, [user.businessLogo, user.signatureImage, user.stampImage]);
+
 
   // Load defaults or edit states
   useEffect(() => {
@@ -813,6 +846,11 @@ export default function CreateInvoice({
               {templateId === 'corporate' && (
                 <div className="flex justify-between items-start border-b-2 border-brand-primary pb-4">
                   <div>
+                    {user.businessLogo ? (
+                      <img src={preloadedLogoBase64 || user.businessLogo} alt="Logo" className="h-10 max-w-[140px] object-contain mb-2" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg bg-brand-primary flex items-center justify-center font-bold text-white text-xs mb-2">LOGO</div>
+                    )}
                     <h2 className="text-lg font-black text-brand-dark uppercase tracking-tight">{user.businessName}</h2>
                     <p className="text-[10px] text-gray-500">{user.address || 'Alamat Perusahaan Belum Dilengkapi'}</p>
                     {user.taxNumber && <p className="text-[10px] text-gray-500 font-mono">NPWP: {user.taxNumber}</p>}
@@ -827,6 +865,9 @@ export default function CreateInvoice({
               {templateId === 'minimalist' && (
                 <div className="flex justify-between items-start border-b border-gray-150 pb-4">
                   <div>
+                    {user.businessLogo ? (
+                      <img src={preloadedLogoBase64 || user.businessLogo} alt="Logo" className="h-10 max-w-[140px] object-contain mb-2" />
+                    ) : null}
                     <h2 className="text-base font-extrabold text-gray-800 tracking-tight">{user.businessName}</h2>
                     <p className="text-[9px] text-gray-400 mt-0.5">{user.address}</p>
                   </div>
@@ -842,6 +883,9 @@ export default function CreateInvoice({
                   <div className="h-2 bg-brand-gold -mx-8 -mt-8"></div>
                   <div className="flex justify-between items-start">
                     <div>
+                      {user.businessLogo ? (
+                        <img src={preloadedLogoBase64 || user.businessLogo} alt="Logo" className="h-10 max-w-[140px] object-contain mb-2" />
+                      ) : null}
                       <h2 className="text-lg font-extrabold text-slate-800 font-display tracking-tight">{user.businessName}</h2>
                       <p className="text-[10px] text-gray-500">{user.address}</p>
                     </div>
@@ -957,13 +1001,28 @@ export default function CreateInvoice({
 
               {/* Terms & notes */}
               <div className="grid grid-cols-2 gap-4 text-[9px] text-left pt-4 border-t border-gray-100">
-                <div className="space-y-1">
-                  <p className="font-bold text-gray-400 uppercase text-[8px]">Catatan Penting:</p>
-                  <p className="text-gray-500 leading-relaxed whitespace-pre-wrap">{notes || 'Tidak ada catatan khusus.'}</p>
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <p className="font-bold text-gray-400 uppercase text-[8px]">Catatan Penting:</p>
+                    <p className="text-gray-500 leading-relaxed whitespace-pre-wrap">{notes || 'Tidak ada catatan khusus.'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-bold text-gray-400 uppercase text-[8px]">Syarat Pembayaran:</p>
+                    <p className="text-gray-500 leading-relaxed whitespace-pre-wrap">{terms || 'Tidak ada instruksi khusus.'}</p>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <p className="font-bold text-gray-400 uppercase text-[8px]">Syarat Pembayaran:</p>
-                  <p className="text-gray-500 leading-relaxed whitespace-pre-wrap">{terms || 'Tidak ada instruksi khusus.'}</p>
+                <div className="text-center space-y-2 flex flex-col items-center justify-end">
+                  <p className="text-gray-500 font-bold mb-4">{user.businessName}</p>
+                  <div className="relative w-40 h-16 flex items-center justify-center">
+                    {user.signatureImage && (
+                      <img src={preloadedSignatureBase64 || user.signatureImage} alt="Tanda Tangan" className="h-14 object-contain relative z-10" />
+                    )}
+                    {user.stampImage && (
+                      <img src={preloadedStampBase64 || user.stampImage} alt="Cap Stempel" className="h-16 w-16 object-contain absolute z-20 opacity-80 mix-blend-multiply translate-x-[20px] translate-y-[5px]" />
+                    )}
+                  </div>
+                  <div className="w-40 border-b border-gray-400 mt-2"></div>
+                  <p className="font-bold text-gray-700 mt-1">{user.fullName}</p>
                 </div>
               </div>
 
