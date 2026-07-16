@@ -97,7 +97,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
 
   // RESEND EMAIL SETTINGS STATE
   const [resendApiKey, setResendApiKey] = useState('');
-  const [senderEmail, setSenderEmail] = useState('onboarding@resend.dev');
+  const [senderEmail, setSenderEmail] = useState('noreply@fidinvoice.id');
   const [testEmailDest, setTestEmailDest] = useState('');
   const [testEmailLoading, setTestEmailLoading] = useState(false);
   const [testEmailSuccess, setTestEmailSuccess] = useState(false);
@@ -156,7 +156,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
         },
         body: JSON.stringify({
           apiKey: resendApiKey,
-          from: senderEmail || 'onboarding@resend.dev',
+          from: senderEmail || 'noreply@fidinvoice.id',
           to: testEmailDest,
           subject: '⚡ Uji Coba Pengiriman Email Integrasi - FID INVOICE',
           html: `
@@ -170,7 +170,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
                 <p style="font-size: 14px; line-height: 1.6;">Selamat, koneksi API Key Resend Anda pada aplikasi <strong>FID INVOICE</strong> telah berhasil terverifikasi dan siap digunakan untuk pengiriman email asli ke inbox pelanggan secara otomatis.</p>
                 <div style="margin: 20px 0; padding: 12px; background-color: #f8fafc; border-radius: 8px; font-size: 13px; color: #475569;">
                   <strong>Detail Uji Coba:</strong><br/>
-                  • Alamat Pengirim: ${senderEmail || 'onboarding@resend.dev'}<br/>
+                  • Alamat Pengirim: ${senderEmail || 'noreply@fidinvoice.id'}<br/>
                   • Alamat Penerima: ${testEmailDest}<br/>
                   • Tanggal: ${new Date().toLocaleString('id-ID')}<br/>
                   • Status Gateway: Aktif (Live)

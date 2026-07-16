@@ -8,19 +8,16 @@ export interface ResendEmailPayload {
   to: string;
   subject: string;
   html: string;
+  apiKey?: string;
 }
 
 export const getResendConfig = () => {
   let apiKey = localStorage.getItem('fid_invoice_resend_api_key') || '';
   let sender = localStorage.getItem('fid_invoice_resend_sender') || '';
   
-  // If not configured or if it is the old invalid key, auto-seed the provided Resend API Key
-  if (!apiKey || apiKey === 're_A4USDQuQ_Pd19U6MeRHMa82F9ws3oZMUV' || apiKey === 're_dwdDmrFu_JhnanLyHXXxmymXzZYbTG5ne') {
-    apiKey = 're_dwdDmrFu_JhnanLyHXXxmymXzZYbTG5ne'; // Currently invalid per Resend, but updating as requested
-    localStorage.setItem('fid_invoice_resend_api_key', apiKey);
-  }
-  if (!sender) {
-    sender = 'onboarding@resend.dev';
+
+  if (!sender || sender === 'onboarding@resend.dev') {
+    sender = 'noreply@fidinvoice.id';
     localStorage.setItem('fid_invoice_resend_sender', sender);
   }
   
@@ -32,15 +29,14 @@ export const hasResendConfigured = (): boolean => {
 };
 
 async function dispatchEmail(payload: ResendEmailPayload): Promise<boolean> {
-  // We no longer require the client to provide the API key.
-  // The server will use its globally saved config.
+  const { apiKey } = getResendConfig();
   try {
     const response = await fetch('/api/send-email', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, apiKey }),
     });
 
     if (response.ok) {
