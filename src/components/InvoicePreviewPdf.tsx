@@ -264,6 +264,14 @@ export default function InvoicePreviewPdf({
     try {
       // Pre-resolve all dynamic image assets to Base64 to ensure they are fully loaded for jsPDF
       let logoBase64 = sanitizeBase64(preloadedLogoBase64);
+      if (user.businessLogo && !logoBase64) {
+        try {
+          logoBase64 = sanitizeBase64(await fetchImageAsBase64(user.businessLogo));
+        } catch (logoLoadErr) {
+          console.error('Error pre-loading business logo Base64:', logoLoadErr);
+        }
+      }
+
       let originalLogoWidth = 300;
       let originalLogoHeight = 150;
       if (logoBase64) {
@@ -278,7 +286,22 @@ export default function InvoicePreviewPdf({
       }
 
       let signatureBase64 = sanitizeBase64(preloadedSignatureBase64);
+      if (user.signatureImage && !signatureBase64) {
+        try {
+          signatureBase64 = sanitizeBase64(await fetchImageAsBase64(user.signatureImage));
+        } catch (sigLoadErr) {
+          console.error('Error pre-loading signature Base64:', sigLoadErr);
+        }
+      }
+
       let stampBase64 = sanitizeBase64(preloadedStampBase64);
+      if (user.stampImage && !stampBase64) {
+        try {
+          stampBase64 = sanitizeBase64(await fetchImageAsBase64(user.stampImage));
+        } catch (stampLoadErr) {
+          console.error('Error pre-loading stamp Base64:', stampLoadErr);
+        }
+      }
 
       // Helper function to detect image format for jsPDF
       const getFormatFromBase64 = (base64Str: string): string => {

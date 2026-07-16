@@ -719,8 +719,31 @@ export default function QuotationManagement({
 
     try {
       let logoBase64 = sanitizeBase64(preloadedLogoBase64);
+      if (user.businessLogo && !logoBase64) {
+        try {
+          logoBase64 = sanitizeBase64(await fetchImageAsBase64(user.businessLogo));
+        } catch (err) {
+          console.error('Error pre-loading business logo Base64:', err);
+        }
+      }
+
       let signatureBase64 = sanitizeBase64(preloadedSignatureBase64);
+      if (user.signatureImage && !signatureBase64) {
+        try {
+          signatureBase64 = sanitizeBase64(await fetchImageAsBase64(user.signatureImage));
+        } catch (err) {
+          console.error('Error pre-loading signature Base64:', err);
+        }
+      }
+
       let stampBase64 = sanitizeBase64(preloadedStampBase64);
+      if (user.stampImage && !stampBase64) {
+        try {
+          stampBase64 = sanitizeBase64(await fetchImageAsBase64(user.stampImage));
+        } catch (err) {
+          console.error('Error pre-loading stamp Base64:', err);
+        }
+      }
 
       let originalLogoWidth = 300;
       let originalLogoHeight = 150;
