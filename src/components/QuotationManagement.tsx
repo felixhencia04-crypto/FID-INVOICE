@@ -1948,7 +1948,7 @@ export default function QuotationManagement({
                         {/* Company sender info */}
                         <div>
                           {user.businessLogo ? (
-                            <img src={user.businessLogo} alt="Logo" className="h-10 object-contain mb-3" />
+                            <img src={preloadedLogoBase64 || user.businessLogo} alt="Logo" className="h-10 max-w-[140px] object-contain mb-3" />
                           ) : (
                             <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-sm mb-3">
                               {user.businessName?.charAt(0) || 'U'}
@@ -2077,7 +2077,7 @@ export default function QuotationManagement({
                           <p>Hormat Kami, {user.businessName}</p>
                           <div className="h-16 flex items-center justify-end">
                             {user.signatureImage ? (
-                              <img src={user.signatureImage} alt="Tanda Tangan" className="h-14 object-contain" />
+                              <img src={preloadedSignatureBase64 || user.signatureImage} alt="Tanda Tangan" className="h-14 object-contain" />
                             ) : (
                               <span className="text-gray-300 italic mr-6">( Tanda Tangan Digital )</span>
                             )}
@@ -2232,7 +2232,7 @@ export default function QuotationManagement({
               {/* Sender Details */}
               <div>
                 {user.businessLogo ? (
-                  <img src={user.businessLogo} alt="Logo" className="h-12 object-contain mb-3" />
+                  <img src={preloadedLogoBase64 || user.businessLogo} alt="Logo" className="h-12 max-w-[150px] object-contain mb-3" />
                 ) : (
                   <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-base mb-3">
                     {user.businessName?.charAt(0) || 'U'}
@@ -2372,12 +2372,12 @@ export default function QuotationManagement({
                 <p>Hormat Kami, Penyedia Jasa</p>
                 <div className="h-20 flex items-center justify-end relative">
                   {user.signatureImage ? (
-                    <img src={user.signatureImage} alt="Tanda Tangan" className="h-16 object-contain" />
+                    <img src={preloadedSignatureBase64 || user.signatureImage} alt="Tanda Tangan" className="h-16 object-contain" />
                   ) : (
                     <span className="text-gray-300 italic mr-10">( Tanda Tangan Digital )</span>
                   )}
                   {user.stampImage && (
-                    <img src={user.stampImage} alt="Cap Stempel" className="h-16 w-16 object-contain absolute right-2 opacity-80" />
+                    <img src={preloadedStampBase64 || user.stampImage} alt="Cap Stempel" className="h-16 w-16 object-contain absolute right-2 opacity-80" />
                   )}
                 </div>
                 <p className="border-t border-dashed border-gray-200 pt-1 text-slate-700 font-bold mt-2 inline-block">

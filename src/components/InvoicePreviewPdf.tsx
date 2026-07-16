@@ -363,50 +363,60 @@ export default function InvoicePreviewPdf({
         doc.rect(17, 17, 176, 263, 'S'); // Inner accent border
         
         // Header
+        let kuitansiLogoW = 0;
+        let kuitansiLogoH = 0;
+        let logoEndX = 22;
+
         if (logoBase64) {
           try {
             const maxW = 32;
             const maxH = 14;
             const ratio = Math.min(maxW / originalLogoWidth, maxH / originalLogoHeight);
-            const logoW = originalLogoWidth * ratio;
-            const logoH = originalLogoHeight * ratio;
+            kuitansiLogoW = originalLogoWidth * ratio;
+            kuitansiLogoH = originalLogoHeight * ratio;
 
             const format = getFormatFromBase64(logoBase64);
             // Draw company logo on the left of the header
-            doc.addImage(logoBase64, format, 25, 21, logoW, logoH);
+            doc.addImage(logoBase64, format, 22, 21, kuitansiLogoW, kuitansiLogoH);
+            logoEndX = 22 + kuitansiLogoW + 5;
           } catch (logoErr) {
             console.error('Error drawing logo in receipt PDF:', logoErr);
+            logoEndX = 22;
           }
-          
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(8);
-          doc.setTextColor(31, 41, 55);
-          doc.text(user.businessName, 25, 37);
-          
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(17);
-          doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-          doc.text('KUITANSI PEMBAYARAN', 185, 30, { align: 'right' });
-          
-          doc.setFont('helvetica', 'italic');
-          doc.setFontSize(8.5);
-          doc.setTextColor(120, 130, 140);
-          doc.text('OFFICIAL PAYMENT RECEIPT', 185, 35, { align: 'right' });
         } else {
+          // Draw LOGO initials badge
+          doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+          doc.roundedRect(22, 21, 14, 14, 2, 2, 'F');
+          doc.setTextColor(255, 255, 255);
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(21);
-          doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-          doc.text('KUITANSI PEMBAYARAN', 105, 31, { align: 'center' });
-          
-          doc.setFont('helvetica', 'italic');
-          doc.setFontSize(9.5);
-          doc.setTextColor(120, 130, 140);
-          doc.text('OFFICIAL PAYMENT RECEIPT', 105, 36, { align: 'center' });
-          
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(9.5);
-          doc.setTextColor(31, 41, 55);
-          doc.text(user.businessName, 105, 41, { align: 'center' });
+          doc.setFontSize(10);
+          const initials = user.businessName ? user.businessName.substring(0, 2).toUpperCase() : 'CO';
+          doc.text(initials, 29, 29.5, { align: 'center' });
+          logoEndX = 22 + 14 + 5;
+        }
+
+        // Title on the left (next to logo)
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.text('KUITANSI PEMBAYARAN', logoEndX, 27);
+        
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(156, 163, 175);
+        doc.text('OFFICIAL PAYMENT RECEIPT', logoEndX, 32);
+
+        // Business Details on the right
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(31, 41, 55);
+        doc.text(user.businessName, 188, 27, { align: 'right' });
+        
+        if (user.taxNumber) {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7.5);
+          doc.setTextColor(156, 163, 175);
+          doc.text(`NPWP: ${user.taxNumber}`, 188, 32, { align: 'right' });
         }
 
         // Divider
@@ -1196,7 +1206,7 @@ export default function InvoicePreviewPdf({
                 <div className="flex justify-between items-center pb-4 border-b border-gray-150 text-left">
                   <div className="flex items-center gap-3">
                     {user.businessLogo ? (
-                      <img id="kuitansi-logo-preview" src={preloadedLogoBase64 || user.businessLogo} alt="Logo" className="h-10 object-contain" />
+                      <img id="kuitansi-logo-preview" src={preloadedLogoBase64 || user.businessLogo} alt="Logo" className="h-10 max-w-[120px] object-contain" />
                     ) : (
                       <div className="w-10 h-10 rounded-lg bg-brand-primary flex items-center justify-center font-bold text-white text-xs">LOGO</div>
                     )}
@@ -1339,7 +1349,7 @@ export default function InvoicePreviewPdf({
                 <div className="flex justify-between items-start border-b-2 border-brand-primary pb-4">
                   <div>
                     {user.businessLogo ? (
-                      <img id="invoice-logo-preview" src={preloadedLogoBase64 || user.businessLogo} alt="Logo" className="h-10 object-contain mb-2" />
+                      <img id="invoice-logo-preview" src={preloadedLogoBase64 || user.businessLogo} alt="Logo" className="h-10 max-w-[140px] object-contain mb-2" />
                     ) : (
                       <div className="w-10 h-10 rounded-lg bg-brand-primary flex items-center justify-center font-bold text-white text-xs mb-2">LOGO</div>
                     )}
@@ -1359,7 +1369,7 @@ export default function InvoicePreviewPdf({
                 <div className="flex justify-between items-start border-b border-gray-200 pb-4">
                   <div>
                     {user.businessLogo ? (
-                      <img id="invoice-logo-preview" src={preloadedLogoBase64 || user.businessLogo} alt="Logo" className="h-10 object-contain mb-2" />
+                      <img id="invoice-logo-preview" src={preloadedLogoBase64 || user.businessLogo} alt="Logo" className="h-10 max-w-[140px] object-contain mb-2" />
                     ) : null}
                     <h2 className="text-base font-bold text-gray-900 uppercase tracking-tight leading-none">{user.businessName}</h2>
                     <p className="text-[9px] text-gray-400 mt-1.5 max-w-xs leading-relaxed">{user.address}</p>
@@ -1379,7 +1389,7 @@ export default function InvoicePreviewPdf({
                   <div className="flex justify-between items-start">
                     <div>
                       {user.businessLogo ? (
-                        <img id="invoice-logo-preview" src={preloadedLogoBase64 || user.businessLogo} alt="Logo" className="h-10 object-contain mb-2" />
+                        <img id="invoice-logo-preview" src={preloadedLogoBase64 || user.businessLogo} alt="Logo" className="h-10 max-w-[140px] object-contain mb-2" />
                       ) : null}
                       <h2 className="text-lg font-extrabold text-slate-950 font-display tracking-tight uppercase leading-none">{user.businessName}</h2>
                       <p className="text-[10px] text-gray-500 mt-1.5 max-w-xs leading-relaxed">{user.address}</p>
