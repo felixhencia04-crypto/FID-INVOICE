@@ -21,6 +21,22 @@ const PAYMENTS_FILE = path.join(process.cwd(), 'payments-db.json');
 const USERS_FILE = path.join(process.cwd(), 'users-db.json');
 const CREDENTIALS_FILE = path.join(process.cwd(), 'credentials-db.json');
 
+// Config persistent storage setup
+const CONFIG_FILE = path.join(process.cwd(), 'config-db.json');
+
+function loadConfig(): any {
+  try {
+    if (fs.existsSync(CONFIG_FILE)) {
+      return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+    }
+  } catch (err) {}
+  return { resendApiKey: '', resendSender: 'admin@fidinvoice.id' };
+}
+
+function saveConfig(config: any) {
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+}
+
 function loadUsers(): any[] {
   try {
     if (fs.existsSync(USERS_FILE)) {
@@ -505,13 +521,33 @@ app.get('/api/doku/history/:userId', async (req, res) => {
 });
 
 // Endpoint to retrieve all transactions for application owner (admin panel)
-  app.post('/api/send-email', async (req, res) => {
+// API endpoints for global config
+app.get('/api/config/email', (req, res) => {
+  res.json(loadConfig());
+});
+
+app.post('/api/config/email', (req, res) => {
+  const { resendApiKey, resendSender } = req.body;
+  const config = loadConfig();
+  if (resendApiKey !== undefined) config.resendApiKey = resendApiKey;
+  if (resendSender !== undefined) config.resendSender = resendSender;
+  saveConfig(config);
+  res.json({ success: true });
+});
+
+app.post('/api/send-email', async (req, res) => {
   try {
-    const { apiKey, from, to, subject, html } = req.body;
+    let { apiKey, from, to, subject, html } = req.body;
+    
+    // Auto fallback to server config if not provided
+    const config = loadConfig();
+    if (!apiKey && config.resendApiKey) apiKey = config.resendApiKey;
+    if (!from && config.resendSender) from = config.resendSender;
+
     console.log('[Server] /api/send-email called with from:', from, 'to:', to);
     if (!apiKey || !from || !to || !subject || !html) {
       console.log('[Server] /api/send-email missing params');
-      return res.status(400).json({ error: 'Missing required parameters' });
+      return res.status(400).json({ error: 'Missing required parameters. Make sure Resend API Key is set in Admin Panel.' });
     }
 
     const response = await fetch('https://api.resend.com/emails', {

@@ -15,8 +15,8 @@ export const getResendConfig = () => {
   let sender = localStorage.getItem('fid_invoice_resend_sender') || '';
   
   // If not configured or if it is the old invalid key, auto-seed the provided Resend API Key
-  if (!apiKey || apiKey === 're_A4USDQuQ_Pd19U6MeRHMa82F9ws3oZMUV') {
-    apiKey = 're_dwdDmrFu_JhnanLyHXXxmymXzZYbTG5ne';
+  if (!apiKey || apiKey === 're_A4USDQuQ_Pd19U6MeRHMa82F9ws3oZMUV' || apiKey === 're_dwdDmrFu_JhnanLyHXXxmymXzZYbTG5ne') {
+    apiKey = 're_dwdDmrFu_JhnanLyHXXxmymXzZYbTG5ne'; // Currently invalid per Resend, but updating as requested
     localStorage.setItem('fid_invoice_resend_api_key', apiKey);
   }
   if (!sender) {

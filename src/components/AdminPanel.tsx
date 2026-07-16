@@ -104,18 +104,35 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
   const [testEmailError, setTestEmailError] = useState('');
 
   useEffect(() => {
-    const savedKey = localStorage.getItem('fid_invoice_resend_api_key') || '';
-    const savedSender = localStorage.getItem('fid_invoice_resend_sender') || 'onboarding@resend.dev';
-    setResendApiKey(savedKey);
-    setSenderEmail(savedSender);
+    // Load config from backend
+    fetch('/api/config/email')
+      .then(res => res.json())
+      .then(data => {
+        if (data.resendApiKey) setResendApiKey(data.resendApiKey);
+        if (data.resendSender) setSenderEmail(data.resendSender);
+      })
+      .catch(err => console.error('Failed to load email config:', err));
   }, []);
 
-  const handleSaveEmailSettings = (e: React.FormEvent) => {
+  const handleSaveEmailSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem('fid_invoice_resend_api_key', resendApiKey);
-    localStorage.setItem('fid_invoice_resend_sender', senderEmail);
-    setNotif('Pengaturan integrasi Resend Email berhasil disimpan!');
-    setTimeout(() => setNotif(''), 3000);
+    try {
+      await fetch('/api/config/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resendApiKey,
+          resendSender: senderEmail
+        })
+      });
+      localStorage.setItem('fid_invoice_resend_api_key', resendApiKey);
+      localStorage.setItem('fid_invoice_resend_sender', senderEmail);
+      setNotif('Pengaturan integrasi Resend Email berhasil disimpan!');
+      setTimeout(() => setNotif(''), 3000);
+    } catch (err) {
+      console.error(err);
+      setTestEmailError('Gagal menyimpan pengaturan ke server.');
+    }
   };
 
   const handleSendTestEmail = async () => {
