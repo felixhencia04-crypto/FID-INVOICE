@@ -13,6 +13,10 @@ export interface ResendEmailPayload {
 
 export const getResendConfig = () => {
   let apiKey = localStorage.getItem('fid_invoice_resend_api_key') || '';
+  if (apiKey === 're_A4USDQuQ_Pd19U6MeRHMa82F9ws3oZMUV' || apiKey === 're_dwdDmrFu_JhnanLyHXXxmymXzZYbTG5ne') {
+    apiKey = '';
+    localStorage.removeItem('fid_invoice_resend_api_key');
+  }
   let sender = localStorage.getItem('fid_invoice_resend_sender') || '';
   
 
@@ -30,6 +34,7 @@ export const hasResendConfigured = (): boolean => {
 
 async function dispatchEmail(payload: ResendEmailPayload): Promise<boolean> {
   const { apiKey } = getResendConfig();
+  console.log('Dispatching email with API key prefix:', apiKey ? apiKey.substring(0, 6) + '...' : 'EMPTY');
   try {
     const response = await fetch('/api/send-email', {
       method: 'POST',

@@ -543,9 +543,11 @@ app.post('/api/send-email', async (req, res) => {
     // Auto fallback to server config if not provided
     const config = loadConfig();
     if (!apiKey && config.resendApiKey) apiKey = config.resendApiKey;
+    if (!apiKey && process.env.RESEND_API_KEY) apiKey = process.env.RESEND_API_KEY;
     if (!from && config.resendSender) from = config.resendSender;
 
-    console.log('[Server] /api/send-email called with from:', from, 'to:', to);
+    const maskedKey = apiKey ? `${apiKey.substring(0, 7)}...${apiKey.substring(apiKey.length - 4)}` : 'MISSING';
+    console.log(`[Server] /api/send-email called with from: ${from}, to: ${to}, apiKey: ${maskedKey}`);
     if (!apiKey || !from || !to || !subject || !html) {
       console.log('[Server] /api/send-email missing params');
       return res.status(400).json({ error: 'Missing required parameters. Make sure Resend API Key is set in Admin Panel.' });
@@ -561,6 +563,9 @@ app.post('/api/send-email', async (req, res) => {
 
     if (error) {
       console.error('[Server] Resend SDK Error:', error);
+      if (error.message === 'API key is invalid') {
+        return res.status(400).json({ message: 'API Key Resend tidak valid atau salah. Pastikan Anda menyalin key yang benar dari dashboard Resend (dimulai dengan re_).' });
+      }
       return res.status(400).json(error);
     }
 

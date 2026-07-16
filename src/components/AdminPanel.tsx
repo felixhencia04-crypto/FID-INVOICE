@@ -121,11 +121,11 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          resendApiKey,
-          resendSender: senderEmail
+          resendApiKey: resendApiKey.trim(),
+          resendSender: senderEmail.trim()
         })
       });
-      localStorage.setItem('fid_invoice_resend_api_key', resendApiKey);
+      localStorage.setItem('fid_invoice_resend_api_key', resendApiKey.trim());
       localStorage.setItem('fid_invoice_resend_sender', senderEmail);
       setNotif('Pengaturan integrasi Resend Email berhasil disimpan!');
       setTimeout(() => setNotif(''), 3000);
@@ -155,7 +155,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          apiKey: resendApiKey,
+          apiKey: resendApiKey.trim(),
           from: senderEmail || 'noreply@fidinvoice.id',
           to: testEmailDest,
           subject: '⚡ Uji Coba Pengiriman Email Integrasi - FID INVOICE',
