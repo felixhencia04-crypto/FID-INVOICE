@@ -4,7 +4,7 @@ import {
   Mail, Lock, User, Briefcase, Phone, CheckCircle, 
   Eye, EyeOff, Shield, ArrowLeft, RefreshCw, AlertCircle, X
 } from 'lucide-react';
-import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail as sendFirebasePasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../lib/firebase';
 import { UserProfile } from '../types';
@@ -334,7 +334,7 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
     }
   };
 
-  const handleVerificationComplete = () => {
+  const handleVerificationComplete = async () => {
     if (isCreatingPassword) {
       if (!password || !confirmPassword) {
         setErrorMsg('Kata sandi wajib diisi.');
@@ -354,8 +354,11 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
     }
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
       const isOwnerEmail = email.toLowerCase().trim() === 'felix.hencia04@gmail.com' || email.toLowerCase().trim() === 'admin@fidinvoice.com';
       const expiry = new Date();
       if (isOwnerEmail) {
@@ -365,7 +368,7 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
       }
 
       const newUser: UserProfile = {
-        id: isOwnerEmail ? 'user-demo' : 'user_' + Math.random().toString(36).substring(2, 9),
+        id: user.uid,
         fullName,
         businessName,
         email,
@@ -377,43 +380,23 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
           trialDaysRemaining: isOwnerEmail ? 0 : 3
         }
       };
-
-      // Save to global users
-      const allUsersStr = localStorage.getItem('fid_invoice_all_users');
-      let users: UserProfile[] = [];
-      if (allUsersStr) {
-        users = JSON.parse(allUsersStr);
-      }
-      // Remove any existing user with the same email (in case of stale local storage after deletion)
-      users = users.filter(u => u.email.toLowerCase().trim() !== email.toLowerCase().trim());
-      users.push(newUser);
-      localStorage.setItem('fid_invoice_all_users', JSON.stringify(users));
-
-      // Ensure credentials mapping exists
-      const storedCreds = localStorage.getItem('fid_invoice_user_credentials') || '{}';
-      const credentials = JSON.parse(storedCreds);
-      credentials[email.toLowerCase().trim()] = password;
-      localStorage.setItem('fid_invoice_user_credentials', JSON.stringify(credentials));
-
-      // Sync both to server immediately
-      fetch('/api/users/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: newUser })
-      }).catch(err => console.error('Failed to sync new user to server:', err));
-
-      fetch('/api/credentials/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credentials })
-      }).catch(err => console.error('Failed to sync credentials to server:', err));
-
-      // Dispatch custom window event for instant admin panel real-time sync
-      window.dispatchEvent(new Event('fid_users_updated'));
-
+      
+      await setDoc(doc(db, 'users', user.uid), {
+        ...newUser,
+        active: true
+      });
+      
+      setIsLoading(false);
       onAuthSuccess(newUser);
-    }, 1000);
+      
+    } catch (error: any) {
+      setIsLoading(false);
+      console.error("Firebase Auth Error:", error);
+      setErrorMsg('Gagal membuat akun: ' + error.message);
+      setErrorType('other');
+    }
   };
+
 
   const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -426,60 +409,19 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
     setErrorType('none');
     setIsLoading(true);
 
-    // Look up credentials database to ensure email exists or register it on the fly for sandbox
-    let credentials: Record<string, string> = {};
-    const storedCreds = localStorage.getItem('fid_invoice_user_credentials');
-    if (storedCreds) {
-      credentials = JSON.parse(storedCreds);
-    } else {
-      credentials = {
-        'felix.hencia04@gmail.com': 'admin123',
-        'admin@fidinvoice.com': 'admin123',
-        'demo@fidinvoice.com': 'demo123'
-      };
-    }
-
-    const lowerEmail = email.toLowerCase().trim();
-    if (!(lowerEmail in credentials)) {
-      credentials[lowerEmail] = 'temp123';
-      localStorage.setItem('fid_invoice_user_credentials', JSON.stringify(credentials));
-    }
-
-    if (hasResendConfigured()) {
-      try {
-        const success = await sendPasswordResetEmail(email, 'Rekan Bisnis', 'reset');
-        setIsLoading(false);
-        if (success) {
-          setSuccessMsg('Email pemulihan kata sandi berhasil dikirim! Silakan periksa kotak masuk (inbox) atau folder spam email asli Anda.');
-          setShowForgotSimulator(false);
-        } else {
-          setErrorMsg('Gagal mengirim email. Pastikan API Key Resend Anda benar dan domain pengirim telah terverifikasi.');
-          setErrorType('other');
-          // Fallback to sandbox
-          setShowForgotSimulator(true);
-        }
-      } catch (err: any) {
-        setIsLoading(false);
-        setErrorMsg(`Gagal mengirim email: ${err.message}`);
-        setErrorType('other');
-        setShowForgotSimulator(true);
-      }
-    } else {
-      setTimeout(() => {
-        setIsLoading(false);
-        if (!(lowerEmail in credentials)) {
-          setSuccessMsg(`Email baru terdeteksi. Sistem sandbox telah mendaftarkan '${email}' secara otomatis agar Anda dapat mensimulasikan pemulihan sandi!`);
-        } else {
-          setSuccessMsg('Email pemulihan kata sandi simulasi siap dibuka di bawah ini.');
-        }
-        setShowForgotSimulator(true);
-        setSimulatedEmailOpen(false);
-        setResetPasswordSuccess(false);
-        setNewPassword('');
-        setNewConfirmPassword('');
-      }, 1000);
+    try {
+      await sendFirebasePasswordResetEmail(auth, email);
+      setIsLoading(false);
+      setSuccessMsg('Email pemulihan kata sandi berhasil dikirim! Silakan periksa kotak masuk (inbox) atau folder spam Anda.');
+      setShowForgotSimulator(false);
+    } catch (error: any) {
+      console.error("Firebase Password Reset Error:", error);
+      setIsLoading(false);
+      setErrorMsg('Gagal mengirim email pemulihan. Pastikan email terdaftar atau coba beberapa saat lagi.');
+      setErrorType('other');
     }
   };
+
   const strength = getPasswordStrength();
 
   return (
@@ -1043,347 +985,8 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
                 </div>
               )}
 
-              {showForgotSimulator && (
-                <div className="mt-6 pt-6 border-t border-gray-150 text-left">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-mono">📬 Kotak Masuk Simulasi Email ({email})</span>
-                    {!simulatedEmailOpen && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-blue-100 text-blue-800 animate-pulse">1 Baru</span>
-                    )}
-                  </div>
-                  
-                  {hasResendConfigured() ? (
-                    <div className="mb-3 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-[10px] leading-relaxed flex flex-col gap-1">
-                      <span className="font-extrabold flex items-center gap-1 text-[11px]">⚠️ PENGIRIMAN EMAIL GAGAL (FALLBACK)</span>
-                      <span>Modul mendeteksi API Key, namun pengiriman gagal. Pastikan API Key benar dan domain Anda telah diverifikasi di Resend. Sementara itu, kami menampilkan kotak masuk simulasi di bawah ini agar Anda tetap bisa melanjutkan pemulihan sandi.</span>
-                    </div>
-                  ) : (
-                    <div className="mb-3 p-3 bg-amber-50 border border-amber-150 text-amber-700 rounded-xl text-[10px] leading-relaxed flex flex-col gap-1">
-                      <span className="font-bold flex items-center gap-1 text-[11px]">🔌 MODE TESTING (SANDBOX)</span>
-                      <span>Untuk mengaktifkan pengiriman email pemulihan asli ke inbox user secara otomatis, atur API Key Resend di <strong>Panel Pemilik &gt; Integrasi Email</strong>.</span>
-                    </div>
-                  )}
-                  
-                  {!simulatedEmailOpen ? (
-                    // Compact Email Preview List
-                    <div 
-                      className="bg-amber-50/50 border border-amber-200 rounded-xl p-4 hover:border-brand-primary/30 transition-all cursor-pointer shadow-xs hover:shadow-md group"
-                      onClick={() => {
-                        setSimulatedEmailOpen(true);
-                        setSimulatedError('');
-                        setNewPassword('');
-                        setNewConfirmPassword('');
-                        setResetPasswordSuccess(false);
-                      }}
-                    >
-                      <div className="flex justify-between items-start">
-                        <span className="text-xs font-black text-brand-dark group-hover:text-brand-primary transition-colors">FID INVOICE Support</span>
-                        <span className="text-[10px] text-gray-400 font-mono">Baru saja</span>
-                      </div>
-                      <h4 className="text-xs font-bold text-brand-primary mt-1">🔑 Atur Ulang Kata Sandi Akun FID INVOICE</h4>
-                      <p className="text-[10px] text-gray-500 mt-1 line-clamp-2 leading-relaxed">
-                        Halo, kami menerima permintaan untuk mengatur ulang kata sandi Anda. Silakan klik pesan ini untuk mengatur ulang sandi secara aman...
-                      </p>
-                      <div className="mt-3 flex items-center gap-1 text-[11px] text-brand-primary font-black">
-                        <span>Buka Email & Atur Sandi Baru ↗</span>
-                      </div>
-                    </div>
-                  ) : (
-                    // Expanded Email Details & Reset Password Form
-                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-md">
-                      {/* Email Header */}
-                      <div className="bg-gray-50 border-b border-gray-150 p-3 flex justify-between items-center">
-                        <button
-                          type="button"
-                          onClick={() => setSimulatedEmailOpen(false)}
-                          className="text-xs font-semibold text-gray-500 hover:text-gray-700 flex items-center gap-1 cursor-pointer"
-                        >
-                          ← Kembali
-                        </button>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-mono">Mail Reader v1.0</span>
-                      </div>
-                      
-                      <div className="p-4 space-y-4">
-                        <div className="border-b border-gray-100 pb-3 text-xs space-y-1">
-                          <p><span className="text-gray-400 font-medium">Dari:</span> <span className="font-bold text-gray-700">FID INVOICE Support</span> &lt;noreply@fidinvoice.com&gt;</p>
-                          <p><span className="text-gray-400 font-medium">Untuk:</span> <span className="font-bold text-gray-700">{email}</span></p>
-                          <p><span className="text-gray-400 font-medium">Subjek:</span> <span className="font-bold text-brand-dark">🔑 Atur Ulang Kata Sandi Akun FID INVOICE</span></p>
-                        </div>
-
-                        {!resetPasswordSuccess ? (
-                          // Reset Form Inline
-                          <form 
-                            onSubmit={(e) => {
-                              e.preventDefault();
-                              if (!newPassword || !newConfirmPassword) {
-                                setSimulatedError('Sandi baru dan konfirmasi wajib diisi!');
-                                return;
-                              }
-                              if (newPassword.length < 6) {
-                                setSimulatedError('Kata sandi minimal harus 6 karakter demi keamanan!');
-                                return;
-                              }
-                              if (newPassword !== newConfirmPassword) {
-                                setSimulatedError('Konfirmasi kata sandi tidak cocok. Silakan ulangi.');
-                                return;
-                              }
-
-                              // Success! Update local credentials store
-                              const storedCreds = localStorage.getItem('fid_invoice_user_credentials') || '{}';
-                              const credentials = JSON.parse(storedCreds);
-                              credentials[email.toLowerCase().trim()] = newPassword;
-                              localStorage.setItem('fid_invoice_user_credentials', JSON.stringify(credentials));
-
-                              fetch('/api/credentials/sync', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ credentials })
-                              }).catch(err => console.error('Failed to sync credentials to server:', err));
-
-                              // Pre-fill fields for ease of test
-                              setPassword(''); 
-                              setSimulatedError('');
-                              setResetPasswordSuccess(true);
-                            }}
-                            className="space-y-3.5 pt-1"
-                          >
-                            <p className="text-xs text-gray-600 leading-relaxed">
-                              Halo, kami menerima permintaan untuk mengatur ulang kata sandi Anda. Silakan isi form di bawah untuk mengubah kata sandi Anda:
-                            </p>
-
-                            <div className="space-y-1">
-                              <label className="block text-[10px] font-bold text-gray-600 uppercase">Kata Sandi Baru</label>
-                              <div className="relative">
-                                <input
-                                  type="password"
-                                  value={newPassword}
-                                  onChange={(e) => setNewPassword(e.target.value)}
-                                  placeholder="Masukkan sandi baru"
-                                  className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-gray-200 text-xs focus:border-brand-primary outline-none"
-                                />
-                                <Lock className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-gray-400" />
-                              </div>
-                            </div>
-
-                            <div className="space-y-1">
-                              <label className="block text-[10px] font-bold text-gray-600 uppercase">Konfirmasi Sandi Baru</label>
-                              <div className="relative">
-                                <input
-                                  type="password"
-                                  value={newConfirmPassword}
-                                  onChange={(e) => setNewConfirmPassword(e.target.value)}
-                                  placeholder="Ulangi sandi baru"
-                                  className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-gray-200 text-xs focus:border-brand-primary outline-none"
-                                />
-                                <Lock className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-gray-400" />
-                              </div>
-                            </div>
-
-                            {simulatedError && (
-                              <div className="p-2 bg-red-50 border border-red-150 rounded-lg text-[10px] text-red-600 font-semibold">
-                                ⚠️ {simulatedError}
-                              </div>
-                            )}
-
-                            <button
-                              type="submit"
-                              className="w-full bg-brand-primary hover:bg-brand-primary-dark text-white font-bold py-2 rounded-lg text-xs transition-colors cursor-pointer text-center"
-                            >
-                              Simpan Kata Sandi Baru
-                            </button>
-                          </form>
-                        ) : (
-                          // Reset Success State
-                          <div className="text-center py-4 space-y-3">
-                            <div className="w-10 h-10 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto shadow-inner">
-                              <CheckCircle className="w-6 h-6" />
-                            </div>
-                            <div className="space-y-1">
-                              <h5 className="text-xs font-extrabold text-gray-800">Kata Sandi Berhasil Diperbarui!</h5>
-                              <p className="text-[10px] text-gray-500 max-w-xs mx-auto leading-relaxed">
-                                Database lokal Anda telah diperbarui. Silakan kembali ke Halaman Masuk dan login menggunakan sandi baru Anda.
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setView('login');
-                                setShowForgotSimulator(false);
-                                setSimulatedEmailOpen(false);
-                                setResetPasswordSuccess(false);
-                                setSuccessMsg('Kata sandi berhasil diperbarui! Silakan masuk dengan kata sandi baru Anda.');
-                              }}
-                              className="px-4 py-2 bg-brand-primary hover:bg-brand-primary-dark text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                            >
-                              Masuk Sekarang dengan Sandi Baru
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <p className="text-center text-xs text-gray-500">
-                <button 
-                  onClick={() => {
-                    setView('login');
-                    setShowForgotSimulator(false);
-                  }} 
-                  className="text-brand-primary font-bold hover:underline flex items-center gap-1 mx-auto cursor-pointer"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  Kembali ke Halaman Masuk
-                </button>
-              </p>
             </div>
           )}
-
-          {/* VIEW: EMAIL VERIFICATION */}
-          {view === 'verify' && (
-            <div className="space-y-6 text-center">
-              <div className="w-16 h-16 rounded-full bg-brand-primary-light text-brand-primary flex items-center justify-center mx-auto mb-6 shadow-inner">
-                {isCreatingPassword ? <Lock className="w-8 h-8" /> : <Mail className="w-8 h-8" />}
-              </div>
-
-              {!isCreatingPassword ? (
-                <>
-                  <div>
-                    <h3 className="text-2xl font-display font-extrabold text-brand-dark">Verifikasi Email Anda</h3>
-                    <p className="text-sm text-gray-500 mt-2">
-                      Kami telah mengirimkan link verifikasi akun ke:
-                    </p>
-                    <p className="text-sm font-bold text-brand-primary mt-1">{email || 'email@bisnis.com'}</p>
-                    <p className="text-xs text-gray-400 mt-4 leading-relaxed">
-                      Silakan periksa folder kotak masuk atau spam email Anda. Klik link di dalam email tersebut untuk mengaktifkan akun Anda.
-                    </p>
-                  </div>
-
-                  <div className="space-y-3 pt-4">
-                    <button 
-                      onClick={() => setIsCreatingPassword(true)}
-                      className="w-full bg-brand-primary hover:bg-brand-primary-dark text-white font-bold py-3 px-4 rounded-xl text-sm shadow-md transition-transform active:scale-95 cursor-pointer"
-                    >
-                      Saya Sudah Memverifikasi Email
-                    </button>
-
-                    <p className="text-xs text-gray-500">
-                      Tidak menerima email?{' '}
-                      <button 
-                        onClick={() => {
-                          setSuccessMsg('Email verifikasi ulang berhasil dikirim!');
-                          setTimeout(() => setSuccessMsg(''), 3000);
-                        }}
-                        className="text-brand-primary font-bold hover:underline cursor-pointer"
-                      >
-                        Kirim Ulang
-                      </button>
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <div className="text-left space-y-4">
-                  <div className="text-center mb-6">
-                    <h3 className="text-2xl font-display font-extrabold text-brand-dark">Buat Kata Sandi</h3>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Email berhasil diverifikasi. Silakan buat kata sandi untuk akun <span className="font-bold text-brand-primary">{email}</span>
-                    </p>
-                  </div>
-
-                  <form onSubmit={(e) => { e.preventDefault(); handleVerificationComplete(); }} className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Kata Sandi Baru</label>
-                      <div className="relative">
-                        <input 
-                          type={showPassword ? "text" : "password"} 
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          placeholder="Minimal 6 karakter" 
-                          className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 outline-none transition-all"
-                        />
-                        <Lock className="absolute left-3.5 top-3 w-4.5 h-4.5 text-gray-400" />
-                        <button 
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3.5 top-3 text-gray-400 hover:text-brand-primary transition-colors cursor-pointer"
-                        >
-                          {showPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Konfirmasi Kata Sandi Baru</label>
-                      <div className="relative">
-                        <input 
-                          type={showPassword ? "text" : "password"} 
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="Ulangi kata sandi" 
-                          className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 outline-none transition-all"
-                        />
-                        <Lock className="absolute left-3.5 top-3 w-4.5 h-4.5 text-gray-400" />
-                      </div>
-                    </div>
-
-                    <button 
-                      type="submit"
-                      disabled={isLoading}
-                      className="w-full bg-brand-primary hover:bg-brand-primary-dark text-white font-bold py-3.5 px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer mt-4"
-                    >
-                      {isLoading ? (
-                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      ) : (
-                        'Aktifkan Akun & Masuk'
-                      )}
-                    </button>
-                  </form>
-                </div>
-              )}
-
-              {/* Interactive Sandbox Email Inbox Simulator */}
-              {(errorMsg.includes('Gagal mengirim') || !hasResendConfigured()) && (
-                <div className="mt-8 pt-6 border-t border-gray-150 text-left">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-mono">📬 Kotak Masuk Simulasi Email ({email || 'budi@perusahaan.com'})</span>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-blue-100 text-blue-800 animate-pulse font-mono">1 Baru</span>
-                  </div>
-                  
-                  {hasResendConfigured() ? (
-                    <div className="mb-3 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-[10px] leading-relaxed flex flex-col gap-1">
-                      <span className="font-extrabold flex items-center gap-1 text-[11px]">⚠️ PENGIRIMAN EMAIL GAGAL (FALLBACK)</span>
-                      <span>Modul mendeteksi API Key, namun pengiriman gagal. Pastikan API Key benar dan domain Anda telah diverifikasi di Resend. Sementara itu, kami menampilkan kotak masuk simulasi di bawah ini agar Anda tetap bisa melakukan verifikasi manual.</span>
-                    </div>
-                  ) : (
-                    <div className="mb-3 p-3 bg-amber-50 border border-amber-150 text-amber-700 rounded-xl text-[10px] leading-relaxed flex flex-col gap-1">
-                      <span className="font-bold flex items-center gap-1 text-[11px]">🔌 MODE TESTING (SANDBOX)</span>
-                      <span>Email simulasi di bawah ini aktif untuk pengujian cepat. Untuk mengaktifkan pengiriman email asli ke inbox user secara otomatis, atur API Key Resend Anda di <strong>Panel Pemilik &gt; Integrasi Email</strong>.</span>
-                    </div>
-                  )}
-                  
-                  <div className="bg-amber-50/50 border border-amber-200 rounded-xl p-4 hover:border-brand-primary/30 transition-all cursor-pointer shadow-xs" 
-                       onClick={() => setIsCreatingPassword(true)}>
-                    <div className="flex justify-between items-start">
-                      <span className="text-xs font-black text-brand-dark">FID INVOICE</span>
-                      <span className="text-[10px] text-gray-400 font-mono">Baru saja</span>
-                    </div>
-                    <h4 className="text-xs font-bold text-brand-primary mt-1">📧 Verifikasi Akun Bisnis FID INVOICE Anda</h4>
-                    <p className="text-[10px] text-gray-500 mt-1 line-clamp-2 leading-relaxed">
-                      Halo {fullName || 'Pengguna'}, Klik kotak ini untuk langsung memverifikasi email Anda dan mengaktifkan trial 3 hari gratis paket {selectedPlan.toUpperCase()} secara instan!
-                    </p>
-                    <div className="mt-3 flex items-center gap-1 text-[11px] text-brand-primary font-black">
-                      <span>Buka email & verifikasi instan ↗</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* GOOGLE EMAIL PROMPT MODAL */}
-          
-
         </div>
       </div>
     </div>
