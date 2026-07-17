@@ -685,7 +685,33 @@ export default function App() {
   };
 
   // Auth callbacks
-  const handleAuthSuccess = (user: UserProfile) => {
+  const handleAuthSuccess = async (user: UserProfile) => {
+    // Heal incorrectly given lifetime plans
+    const expiryYear = parseInt(user.subscription.expiryDate?.split('-')[0] || '2000');
+    if (expiryYear > 2030) {
+      const fixedExpiry = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      user.subscription.expiryDate = fixedExpiry;
+      user.subscription.status = 'trial';
+      user.subscription.trialDaysRemaining = 3;
+      
+      const allUsers = JSON.parse(localStorage.getItem('fid_invoice_all_users') || '[]');
+      const userIdx = allUsers.findIndex((u: any) => u.id === user.id);
+      if (userIdx !== -1) {
+        allUsers[userIdx] = user;
+        localStorage.setItem('fid_invoice_all_users', JSON.stringify(allUsers));
+      }
+      
+      try {
+        const { doc, updateDoc } = await import('firebase/firestore');
+        const { db } = await import('./lib/firebase');
+        await updateDoc(doc(db, 'users', user.id), {
+          subscription: user.subscription
+        });
+      } catch (err) {
+        console.warn('Failed to heal user subscription in Firestore:', err);
+      }
+    }
+
     setCurrentUser(user);
     localStorage.setItem('fid_invoice_active_session', JSON.stringify(user));
     loadUserData(user.id);

@@ -94,16 +94,11 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
       // In this local state based app, we just simulate successful login and pass the profile back
       // Since it's a real Google login, we'll format a UserProfile and return it
       
-            const isOwnerEmail = email.toLowerCase().trim() === 'admin@fidinvoice.com';
       const futureDate = new Date();
-      if (isOwnerEmail) {
-        futureDate.setFullYear(futureDate.getFullYear() + 20);
-      } else {
-        futureDate.setDate(futureDate.getDate() + 3);
-      }
+      futureDate.setDate(futureDate.getDate() + 3);
       
       const userProfile: UserProfile = {
-        id: isOwnerEmail ? 'user-demo' : user.uid,
+        id: user.uid,
         email: email,
         fullName: fullName,
         businessName: `Bisnis ${fullName}`,
@@ -111,9 +106,9 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
         profilePicture: photoUrl,
         subscription: {
           plan: selectedPlan,
-          status: isOwnerEmail ? 'active' : 'trial',
+          status: 'trial',
           expiryDate: futureDate.toISOString().split('T')[0],
-          trialDaysRemaining: isOwnerEmail ? 0 : 3
+          trialDaysRemaining: 3
         }
       };
       
@@ -140,31 +135,22 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
       if (existingUser) {
         onAuthSuccess(existingUser);
       } else {
-        // Automatically register Google users since their email is verified
-        allUsers.push(userProfile);
-        localStorage.setItem('fid_invoice_all_users', JSON.stringify(allUsers));
+        // Setup state for verification flow
+        setEmail(email);
+        setFullName(fullName);
+        setBusinessName(`Bisnis ${fullName}`);
+        setPhone(user.phoneNumber || '');
+        setPassword(''); // ensure empty so they can create one
         
-        try {
-          await setDoc(doc(db, 'users', user.uid), {
-            ...userProfile,
-            active: true
-          });
-        } catch (err) {
-          console.error('Failed to save Google user to Firestore:', err);
-        }
+        const pendingUsersStr = localStorage.getItem('fid_invoice_pending_users') || '{}';
+        const pendingUsers = JSON.parse(pendingUsersStr);
+        localStorage.setItem('fid_invoice_pending_users', JSON.stringify(pendingUsers));
 
-        // Sync to server
-        try {
-          await fetch('/api/users/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ users: allUsers })
-          });
-        } catch (err) {
-          console.warn('Failed to sync new Google user to server:', err);
-        }
-        
-        onAuthSuccess(userProfile);
+        // Since Google already verified the email, we don't need to send another email.
+        // We just redirect them to create a password for local/backup access.
+        setIsCreatingPassword(true);
+        setView('verify');
+        setIsLoading(false);
       }
     } catch (error: any) {
       console.error("Google Auth Error:", error);
@@ -214,7 +200,7 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
           businessName: userData.businessName || 'Bisnis Anda',
           email: user.email || '',
           phone: userData.phone || '',
-          subscription: { plan: selectedPlan, status: "active", expiryDate: "2099-12-31", trialDaysRemaining: 0 },
+          subscription: userData.subscription || { plan: selectedPlan, status: "trial", expiryDate: new Date(Date.now() + 3*24*60*60*1000).toISOString().split('T')[0], trialDaysRemaining: 3 },
         };
         onAuthSuccess(profile);
       } else {
@@ -225,7 +211,7 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
           businessName: 'Bisnis Anda',
           email: user.email || '',
           phone: '',
-          subscription: { plan: selectedPlan, status: "active", expiryDate: "2099-12-31", trialDaysRemaining: 0 },
+          subscription: { plan: selectedPlan, status: "trial", expiryDate: new Date(Date.now() + 3*24*60*60*1000).toISOString().split('T')[0], trialDaysRemaining: 3 },
         };
         onAuthSuccess(profile);
       }
@@ -349,13 +335,8 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
-      const isOwnerEmail = email.toLowerCase().trim() === 'admin@fidinvoice.com';
       const expiry = new Date();
-      if (isOwnerEmail) {
-        expiry.setFullYear(expiry.getFullYear() + 20); // 20 years perpetual
-      } else {
-        expiry.setDate(expiry.getDate() + 3);
-      }
+      expiry.setDate(expiry.getDate() + 3);
 
       const newUser: UserProfile = {
         id: user.uid,
@@ -365,9 +346,9 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
         phone,
         subscription: {
           plan: selectedPlan,
-          status: isOwnerEmail ? 'active' : 'trial',
+          status: 'trial',
           expiryDate: expiry.toISOString().split('T')[0],
-          trialDaysRemaining: isOwnerEmail ? 0 : 3
+          trialDaysRemaining: 3
         }
       };
       

@@ -135,24 +135,17 @@ export default function SubscriptionPage({
               <h2 className="text-2xl font-extrabold text-brand-dark pt-1.5 capitalize">Paket {user.subscription.plan}</h2>
               <p className="text-xs text-gray-500">
                 Lisensi berlaku sampai dengan: <strong className="text-brand-dark">
-                  {daysRemaining > 3650 ? 'Seumur Hidup (Lifetime)' : formatDateIndonesian(user.subscription.expiryDate)}
+                  {formatDateIndonesian(user.subscription.expiryDate)}
                 </strong>
               </p>
             </div>
 
             {/* Countdown Badge */}
                         <div className="p-4 rounded-xl bg-brand-primary-light/40 border border-brand-primary/5 text-center shrink-0 min-w-[100px] flex flex-col justify-center items-center">
-              {daysRemaining > 3650 ? (
-                <>
-                  <p className="text-xl font-black font-display text-brand-primary">LIFETIME</p>
-                  <p className="text-[9px] text-brand-primary font-bold uppercase tracking-wider mt-0.5">Lisensi Aktif</p>
-                </>
-              ) : (
                 <>
                   <p className="text-2xl font-black font-display text-brand-primary">{daysRemaining}</p>
                   <p className="text-[9px] text-brand-primary font-bold uppercase tracking-wider mt-0.5">Hari Tersisa</p>
                 </>
-              )}
             </div>
           </div>
 
