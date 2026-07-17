@@ -135,22 +135,31 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
       if (existingUser) {
         onAuthSuccess(existingUser);
       } else {
-        // Setup state for verification flow
-        setEmail(email);
-        setFullName(fullName);
-        setBusinessName(`Bisnis ${fullName}`);
-        setPhone(user.phoneNumber || '');
-        setPassword(''); // ensure empty so they can create one
+        // Automatically register Google users since their email is verified
+        allUsers.push(userProfile);
+        localStorage.setItem('fid_invoice_all_users', JSON.stringify(allUsers));
         
-        const pendingUsersStr = localStorage.getItem('fid_invoice_pending_users') || '{}';
-        const pendingUsers = JSON.parse(pendingUsersStr);
-        localStorage.setItem('fid_invoice_pending_users', JSON.stringify(pendingUsers));
+        try {
+          await setDoc(doc(db, 'users', user.uid), {
+            ...userProfile,
+            active: true
+          });
+        } catch (err) {
+          console.error('Failed to save Google user to Firestore:', err);
+        }
 
-        // Since Google already verified the email, we don't need to send another email.
-        // We just redirect them to create a password for local/backup access.
-        setIsCreatingPassword(true);
-        setView('verify');
-        setIsLoading(false);
+        // Sync to server
+        try {
+          await fetch('/api/users/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ users: allUsers })
+          });
+        } catch (err) {
+          console.warn('Failed to sync new Google user to server:', err);
+        }
+        
+        onAuthSuccess(userProfile);
       }
     } catch (error: any) {
       console.error("Google Auth Error:", error);
@@ -363,7 +372,11 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
     } catch (error: any) {
       setIsLoading(false);
       console.error("Firebase Auth Error:", error);
-      setErrorMsg('Gagal membuat akun: ' + error.message);
+      if (error.code === 'auth/email-already-in-use') {
+        setErrorMsg('Email ini sudah terdaftar sebelumnya (mungkin melalui Google Login). Silakan kembali ke halaman utama dan pilih Masuk (Login).');
+      } else {
+        setErrorMsg('Gagal membuat akun: ' + error.message);
+      }
       setErrorType('other');
     }
   };
@@ -858,13 +871,21 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
               )}
 
               {isCreatingPassword ? (
-                <button 
-                  onClick={handleVerificationComplete}
-                  disabled={isLoading}
-                  className="w-full bg-brand-primary hover:bg-brand-primary-dark text-white font-bold py-3.5 px-4 rounded-xl text-sm transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer mt-6"
-                >
-                  {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Selesaikan Pendaftaran'}
-                </button>
+                <div className="flex flex-col gap-3 mt-6">
+                  <button 
+                    onClick={handleVerificationComplete}
+                    disabled={isLoading}
+                    className="w-full bg-brand-primary hover:bg-brand-primary-dark text-white font-bold py-3.5 px-4 rounded-xl text-sm transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Selesaikan Pendaftaran'}
+                  </button>
+                  <button 
+                    onClick={() => setView('login')}
+                    className="text-xs text-brand-primary font-bold hover:underline py-2"
+                  >
+                    Kembali ke halaman Login
+                  </button>
+                </div>
               ) : (
                 <div className="pt-4 border-t border-gray-100 flex flex-col items-center gap-3">
                   <p className="text-xs text-gray-400 text-center">Menunggu Anda melakukan verifikasi via email...</p>
