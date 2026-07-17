@@ -517,6 +517,64 @@ export default function App() {
   const loadUserData = async (userId: string) => {
     const parsed = await loadUserDataFromFirebase(userId);
     if (parsed) {
+      let isDemoAndEmpty = false;
+      if (userId === 'user-demo' && parsed.clients.length === 0 && parsed.products.length === 0 && parsed.invoices.length === 0 && parsed.quotations.length === 0) {
+        isDemoAndEmpty = true;
+      }
+
+      if (isDemoAndEmpty) {
+        // Seed default demo databases ONLY for the demo account
+        const defaultQuotations: Quotation[] = [
+          {
+            id: 'q-demo-1',
+            quotationNumber: 'QT-2026-0001',
+            userId: userId,
+            clientId: SEED_CLIENTS[0]?.id || 'cli-1',
+            clientName: SEED_CLIENTS[0]?.name || 'Felix Hencia',
+            date: new Date().toISOString().split('T')[0],
+            validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            items: [
+              {
+                id: 'qitem-1',
+                description: 'Jasa Pembuatan Website Custom',
+                qty: 1,
+                unit: 'Paket',
+                price: 8500000,
+                discountPercent: 0,
+                subtotal: 8500000
+              }
+            ],
+            globalDiscountPercent: 5,
+            hasTax: true,
+            hasTax2: false,
+            subtotal: 8500000,
+            discountAmount: 425000,
+            taxAmount: 888250,
+            tax2Amount: 0,
+            total: 8963250,
+            spelledOut: 'Delapan Juta Sembilan Ratus Enam Puluh Tiga Ribu Dua Ratus Lima Puluh Rupiah',
+            status: 'Draft',
+            notes: 'Penawaran ini mencakup analisis sistem penuh dan implementasi awal.',
+            terms: '1. Penawaran harga ini berlaku selama 30 hari sejak tanggal diterbitkan.\n2. Pembayaran uang muka sebesar 50% dilakukan saat penandatanganan persetujuan.\n3. Sisa pelunasan 50% dilakukan setelah pekerjaan selesai dideploy.',
+            templateId: 'corporate',
+            currency: 'IDR',
+            createdAt: new Date().toISOString()
+          }
+        ];
+        const defaultData = {
+          clients: SEED_CLIENTS,
+          products: SEED_PRODUCTS,
+          invoices: SEED_INVOICES,
+          quotations: defaultQuotations
+        };
+        localStorage.setItem(`fid_invoice_user_${userId}_data`, JSON.stringify(defaultData));
+        setClients(SEED_CLIENTS);
+        setProducts(SEED_PRODUCTS);
+        setInvoices(SEED_INVOICES);
+        setQuotations(defaultQuotations);
+        syncToFirebaseSubcollections(userId, null, defaultData);
+        return;
+      }
       
       // Healer/Deduplication check for historical duplicates
       const rawInvoices = parsed.invoices || [];
@@ -592,72 +650,8 @@ export default function App() {
         quotations: loadedQuotations
       };
       localStorage.setItem(`fid_invoice_user_${userId}_data`, JSON.stringify(dataToSave));
-    } else {
-      // Seed default demo databases ONLY for the demo account
-      if (userId === 'user-demo') {
-        const defaultQuotations: Quotation[] = [
-          {
-            id: 'q-demo-1',
-            quotationNumber: 'QT-2026-0001',
-            userId: userId,
-            clientId: SEED_CLIENTS[0]?.id || 'cli-1',
-            clientName: SEED_CLIENTS[0]?.name || 'Felix Hencia',
-            date: new Date().toISOString().split('T')[0],
-            validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            items: [
-              {
-                id: 'qitem-1',
-                description: 'Jasa Pembuatan Website Custom',
-                qty: 1,
-                unit: 'Paket',
-                price: 8500000,
-                discountPercent: 0,
-                subtotal: 8500000
-              }
-            ],
-            globalDiscountPercent: 5,
-            hasTax: true,
-            hasTax2: false,
-            subtotal: 8500000,
-            discountAmount: 425000,
-            taxAmount: 888250,
-            tax2Amount: 0,
-            total: 8963250,
-            spelledOut: 'Delapan Juta Sembilan Ratus Enam Puluh Tiga Ribu Dua Ratus Lima Puluh Rupiah',
-            status: 'Draft',
-            notes: 'Penawaran ini mencakup analisis sistem penuh dan implementasi awal.',
-            terms: '1. Penawaran harga ini berlaku selama 30 hari sejak tanggal diterbitkan.\n2. Pembayaran uang muka sebesar 50% dilakukan saat penandatanganan persetujuan.\n3. Sisa pelunasan 50% dilakukan setelah pekerjaan selesai dideploy.',
-            templateId: 'corporate',
-            currency: 'IDR',
-            createdAt: new Date().toISOString()
-          }
-        ];
-        const defaultData = {
-          clients: SEED_CLIENTS,
-          products: SEED_PRODUCTS,
-          invoices: SEED_INVOICES,
-          quotations: defaultQuotations
-        };
-        localStorage.setItem(`fid_invoice_user_${userId}_data`, JSON.stringify(defaultData));
-        setClients(SEED_CLIENTS);
-        setProducts(SEED_PRODUCTS);
-        setInvoices(SEED_INVOICES);
-        setQuotations(defaultQuotations);
-      } else {
-        // Real users get clean slate
-        const emptyData = {
-          clients: [],
-          products: [],
-          invoices: [],
-          quotations: []
-        };
-        localStorage.setItem(`fid_invoice_user_${userId}_data`, JSON.stringify(emptyData));
-        setClients([]);
-        setProducts([]);
-        setInvoices([]);
-        setQuotations([]);
-      }
     }
+
   };
 
   const saveUserDataToStorage = (userId: string, updatedClients: Client[], updatedProducts: Product[], updatedInvoices: Invoice[], updatedQuotations?: Quotation[]) => {
@@ -671,16 +665,19 @@ export default function App() {
       invoices: uniqueInvoices,
       quotations: uniqueQuotations
     };
+    // Get old data for diffing BEFORE updating local storage
+    const oldDataStr = localStorage.getItem(`fid_invoice_user_${userId}_data`);
+    let oldData = null;
+    if (oldDataStr) { try { oldData = JSON.parse(oldDataStr); } catch (e) {} }
+
     // Save to LocalStorage for offline fallback
     try {
       localStorage.setItem(`fid_invoice_user_${userId}_data`, JSON.stringify(dataToSave));
     } catch (e) {
       console.warn('LocalStorage quota exceeded. Firebase sync will continue.', e);
     }
+    
     // Save to Firebase
-    const oldDataStr = localStorage.getItem(`fid_invoice_user_${userId}_data`);
-    let oldData = null;
-    if (oldDataStr) { try { oldData = JSON.parse(oldDataStr); } catch (e) {} }
     syncToFirebaseSubcollections(userId, oldData, dataToSave);
   };
 
@@ -717,17 +714,16 @@ export default function App() {
     const existingIdx = currentAllUsers.findIndex((u: any) => u.id === user.id);
     if (existingIdx === -1) {
       currentAllUsers.push(user);
-      localStorage.setItem('fid_invoice_all_users', JSON.stringify(currentAllUsers));
-      fetch('/api/users/sync-all', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ users: currentAllUsers, overwrite: true })
-      }).catch(err => console.warn('Failed to sync users after login:', err));
     } else {
-      // Update info just in case
       currentAllUsers[existingIdx] = { ...currentAllUsers[existingIdx], ...user };
-      localStorage.setItem('fid_invoice_all_users', JSON.stringify(currentAllUsers));
     }
+    
+    localStorage.setItem('fid_invoice_all_users', JSON.stringify(currentAllUsers));
+    fetch('/api/users/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user })
+    }).catch(err => console.warn('Failed to sync user after login:', err));
 
     setCurrentUser(user);
     localStorage.setItem('fid_invoice_active_session', JSON.stringify(user));

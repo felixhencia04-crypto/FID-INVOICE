@@ -220,7 +220,7 @@ export default function QrisPaymentBox({
             </div>
             
             {/* Bank Selection Tabs */}
-            <div className="flex gap-2 mb-4">
+            <div className="flex flex-wrap sm:flex-nowrap gap-2 mb-4">
               {(Object.keys(bankDetails) as Array<keyof typeof bankDetails>).map((bankKey) => (
                 <button
                   key={bankKey}
@@ -247,7 +247,7 @@ export default function QrisPaymentBox({
               <div>
                 <p className="text-[10px] text-gray-400 dark:text-slate-500 font-bold uppercase tracking-wider mb-1">Nomor Rekening</p>
                 <div className="flex items-center justify-between bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-3 rounded-xl">
-                  <span className="font-mono font-bold text-lg text-blue-600 dark:text-blue-400 tracking-wider">{currentBank.number}</span>
+                  <span className="font-mono font-bold text-base sm:text-lg text-blue-600 dark:text-blue-400 tracking-wider">{currentBank.number}</span>
                   <button 
                     onClick={handleCopyRekening}
                     className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-400 hover:text-blue-600 transition-colors cursor-pointer"

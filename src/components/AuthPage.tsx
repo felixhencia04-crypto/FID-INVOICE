@@ -150,10 +150,10 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
 
         // Sync to server
         try {
-          await fetch('/api/users/sync-all', {
+          await fetch('/api/users/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ users: allUsers, overwrite: true })
+            body: JSON.stringify({ user: userProfile })
           });
         } catch (err) {
           console.warn('Failed to sync new Google user to server:', err);
@@ -372,10 +372,10 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
       localStorage.setItem('fid_invoice_all_users', JSON.stringify(allUsers));
       
       try {
-        await fetch('/api/users/sync-all', {
+        await fetch('/api/users/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ users: allUsers, overwrite: true })
+          body: JSON.stringify({ user: newUser })
         });
       } catch (err) {
         console.warn('Failed to sync new email user to server:', err);
