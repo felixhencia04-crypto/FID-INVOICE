@@ -1,0 +1,2 @@
+sed -i 's/syncToFirebaseSubcollections(userId, dataToSave);/const oldDataStr = localStorage.getItem(`fid_invoice_user_${userId}_data`);\n    let oldData = null;\n    if (oldDataStr) { try { oldData = JSON.parse(oldDataStr); } catch (e) {} }\n    syncToFirebaseSubcollections(userId, oldData, dataToSave);/' src/App.tsx
+sed -i 's/import { loadUserDataFromFirebase, saveUserDataToFirebase }/import { loadUserDataFromFirebase, syncToFirebaseSubcollections }/' src/App.tsx

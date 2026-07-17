@@ -51,6 +51,8 @@ export default function ClientManagement({
   const executeDeleteClient = () => {
     if (confirmDeleteState.clientId) {
       onDeleteClient(confirmDeleteState.clientId);
+      showToast('Klien berhasil dihapus', 'success');
+      setConfirmDeleteState(prev => ({ ...prev, isOpen: false }));
     }
   };
 

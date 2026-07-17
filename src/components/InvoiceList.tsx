@@ -5,6 +5,7 @@ import {
   ChevronDown, FileSpreadsheet, RefreshCw, Printer, MessageSquare, Mail, MoreVertical
 } from 'lucide-react';
 import { Invoice, Client, UserProfile } from '../types';
+import { showToast } from '../utils/toast';
 import { formatCurrency, formatDateIndonesian } from '../utils';
 import ConfirmModal from './ConfirmModal';
 import WhatsAppModal from './WhatsAppModal';
@@ -165,6 +166,8 @@ export default function InvoiceList({
   const executeBulkDelete = () => {
     visibleSelectedInvoices.forEach(inv => onDeleteInvoice(inv.id));
     setSelectedInvoiceIds(prev => prev.filter(id => !visibleSelectedIds.includes(id)));
+    showToast('Invoice terpilih berhasil dihapus', 'success');
+    setConfirmDeleteState(prev => ({ ...prev, isOpen: false }));
   };
 
   // Trigger single delete confirmation
@@ -181,6 +184,8 @@ export default function InvoiceList({
     if (confirmDeleteState.invoiceId) {
       onDeleteInvoice(confirmDeleteState.invoiceId);
       setSelectedInvoiceIds(prev => prev.filter(id => id !== confirmDeleteState.invoiceId));
+      showToast('Invoice berhasil dihapus', 'success');
+      setConfirmDeleteState(prev => ({ ...prev, isOpen: false }));
     }
   };
 
@@ -189,6 +194,8 @@ export default function InvoiceList({
     if (visibleSelectedInvoices.length === 0) return;
     visibleSelectedInvoices.forEach(inv => onMarkAsPaid(inv.id));
     setSelectedInvoiceIds(prev => prev.filter(id => !visibleSelectedIds.includes(id)));
+    showToast('Invoice terpilih berhasil dihapus', 'success');
+    setConfirmDeleteState(prev => ({ ...prev, isOpen: false }));
   };
 
   return (

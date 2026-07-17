@@ -1,0 +1,2 @@
+sed -i 's/import { signInWithPopup } from '\''firebase\/auth'\'';/import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from '\''firebase\/auth'\'';\nimport { doc, getDoc, setDoc } from '\''firebase\/firestore'\'';/' src/components/AuthPage.tsx
+sed -i 's/import { auth, googleProvider } from '\''..\/lib\/firebase'\'';/import { auth, db, googleProvider } from '\''..\/lib\/firebase'\'';/' src/components/AuthPage.tsx

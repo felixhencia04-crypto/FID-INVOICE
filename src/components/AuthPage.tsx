@@ -4,8 +4,9 @@ import {
   Mail, Lock, User, Briefcase, Phone, CheckCircle, 
   Eye, EyeOff, Shield, ArrowLeft, RefreshCw, AlertCircle, X
 } from 'lucide-react';
-import { signInWithPopup } from 'firebase/auth';
-import { auth, googleProvider } from '../lib/firebase';
+import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { auth, db, googleProvider } from '../lib/firebase';
 import { UserProfile } from '../types';
 import { sendVerificationEmail, sendPasswordResetEmail, hasResendConfigured } from '../utils/emailService';
 
@@ -110,7 +111,6 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
         profilePicture: photoUrl,
         subscription: {
           status: isOwnerEmail ? 'active' : 'trial',
-          plan: isOwnerEmail ? 'enterprise' : selectedPlan,
           expiryDate: futureDate.toISOString().split('T')[0],
           trialDaysRemaining: isOwnerEmail ? 0 : 3
         }
@@ -148,7 +148,6 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
         
         const pendingUsersStr = localStorage.getItem('fid_invoice_pending_users') || '{}';
         const pendingUsers = JSON.parse(pendingUsersStr);
-        pendingUsers[email.toLowerCase().trim()] = { fullName, businessName: `Bisnis ${fullName}`, phone: user.phoneNumber || '', plan: selectedPlan };
         localStorage.setItem('fid_invoice_pending_users', JSON.stringify(pendingUsers));
 
         // Send verification email
@@ -224,8 +223,6 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
           businessName: userData.businessName || 'Bisnis Anda',
           email: user.email || '',
           phone: userData.phone || '',
-          avatarUrl: '',
-          plan: userData.plan || 'starter'
         };
         onAuthSuccess(profile);
       } else {
@@ -236,8 +233,6 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
           businessName: 'Bisnis Anda',
           email: user.email || '',
           phone: '',
-          avatarUrl: '',
-          plan: 'starter'
         };
         onAuthSuccess(profile);
       }
@@ -303,7 +298,6 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
       // Store pending info instead of password
       const pendingUsersStr = localStorage.getItem('fid_invoice_pending_users') || '{}';
       const pendingUsers = JSON.parse(pendingUsersStr);
-      pendingUsers[email.toLowerCase().trim()] = { fullName, businessName, phone, plan: selectedPlan };
       localStorage.setItem('fid_invoice_pending_users', JSON.stringify(pendingUsers));
 
       if (hasResendConfigured()) {
@@ -375,7 +369,6 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
         phone,
         subscription: {
           status: isOwnerEmail ? 'active' : 'trial',
-          plan: isOwnerEmail ? 'enterprise' : selectedPlan,
           expiryDate: expiry.toISOString().split('T')[0],
           trialDaysRemaining: isOwnerEmail ? 0 : 3
         }

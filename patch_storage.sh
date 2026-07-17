@@ -1,0 +1,1 @@
+sed -i 's/localStorage.setItem(`fid_invoice_user_${userId}_data`, JSON.stringify(dataToSave));/try {\n      localStorage.setItem(`fid_invoice_user_${userId}_data`, JSON.stringify(dataToSave));\n    } catch (e) {\n      console.warn('\''LocalStorage quota exceeded. Firebase sync will continue.'\'', e);\n    }/' src/App.tsx

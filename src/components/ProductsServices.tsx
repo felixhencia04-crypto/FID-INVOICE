@@ -47,6 +47,8 @@ export default function ProductsServices({
   const executeDeleteProduct = () => {
     if (confirmDeleteState.productId) {
       onDeleteProduct(confirmDeleteState.productId);
+      showToast('Item/Jasa berhasil dihapus', 'success');
+      setConfirmDeleteState(prev => ({ ...prev, isOpen: false }));
     }
   };
 

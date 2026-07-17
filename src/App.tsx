@@ -1,3 +1,4 @@
+import { loadUserDataFromFirebase, syncToFirebaseSubcollections } from "./lib/dataService";
 import React, { useState, useEffect } from 'react';
 import { 
   Building2, Users, FileText, ClipboardList, Package, BarChart3, 
@@ -590,7 +591,7 @@ export default function App() {
         invoices: uniqueInvoices,
         quotations: loadedQuotations
       };
-      localStorage.setItem(key, JSON.stringify(dataToSave));
+      localStorage.setItem(`fid_invoice_user_${userId}_data`, JSON.stringify(dataToSave));
     } else {
       // Seed default demo databases ONLY for the demo account
       if (userId === 'user-demo') {
@@ -637,7 +638,7 @@ export default function App() {
           invoices: SEED_INVOICES,
           quotations: defaultQuotations
         };
-        localStorage.setItem(key, JSON.stringify(defaultData));
+        localStorage.setItem(`fid_invoice_user_${userId}_data`, JSON.stringify(defaultData));
         setClients(SEED_CLIENTS);
         setProducts(SEED_PRODUCTS);
         setInvoices(SEED_INVOICES);
@@ -650,7 +651,7 @@ export default function App() {
           invoices: [],
           quotations: []
         };
-        localStorage.setItem(key, JSON.stringify(emptyData));
+        localStorage.setItem(`fid_invoice_user_${userId}_data`, JSON.stringify(emptyData));
         setClients([]);
         setProducts([]);
         setInvoices([]);
@@ -671,9 +672,16 @@ export default function App() {
       quotations: uniqueQuotations
     };
     // Save to LocalStorage for offline fallback
-    localStorage.setItem(`fid_invoice_user_${userId}_data`, JSON.stringify(dataToSave));
+    try {
+      localStorage.setItem(`fid_invoice_user_${userId}_data`, JSON.stringify(dataToSave));
+    } catch (e) {
+      console.warn('LocalStorage quota exceeded. Firebase sync will continue.', e);
+    }
     // Save to Firebase
-    saveUserDataToFirebase(userId, dataToSave);
+    const oldDataStr = localStorage.getItem(`fid_invoice_user_${userId}_data`);
+    let oldData = null;
+    if (oldDataStr) { try { oldData = JSON.parse(oldDataStr); } catch (e) {} }
+    syncToFirebaseSubcollections(userId, oldData, dataToSave);
   };
 
   // Auth callbacks
@@ -1279,9 +1287,10 @@ export default function App() {
             products={products}
             initialInvoiceToEdit={editingInvoice || undefined}
             onSaveInvoice={handleSaveInvoice}
+            onNavigate={handleNavigate}
             onAddClient={handleAddClient}
             onAddProduct={handleAddProduct}
-            onNavigate={handleNavigate}
+            
             onFeatureBlocked={(featureName) => setBlockedFeatureMessage(featureName)}
           />
         );
@@ -1321,6 +1330,7 @@ export default function App() {
             }}
             onSaveInvoice={handleSaveInvoice}
             onDeleteInvoice={handleDeleteInvoice}
+            
             onFeatureBlocked={(featureName) => setBlockedFeatureMessage(featureName)}
           />
         );
@@ -1331,9 +1341,8 @@ export default function App() {
             user={currentUser!}
             clients={clients}
             invoices={invoices}
-            onAddClient={handleAddClient}
-            onEditClient={handleEditClient}
             onDeleteClient={handleDeleteClient}
+            
             onFeatureBlocked={(featureName) => setBlockedFeatureMessage(featureName)}
           />
         );
@@ -1343,9 +1352,10 @@ export default function App() {
           <ProductsServices 
             user={currentUser!}
             products={products}
-            onAddProduct={handleAddProduct}
+            
             onEditProduct={handleEditProduct}
             onDeleteProduct={handleDeleteProduct}
+            
             onFeatureBlocked={(featureName) => setBlockedFeatureMessage(featureName)}
           />
         );
@@ -1371,6 +1381,9 @@ export default function App() {
             onDeleteQuotation={handleDeleteQuotation}
             onConvertQuotationToInvoice={handleConvertQuotationToInvoice}
             onNavigate={handleNavigate}
+            onAddClient={handleAddClient}
+            onAddProduct={handleAddProduct}
+            
             onFeatureBlocked={(featureName) => setBlockedFeatureMessage(featureName)}
           />
         );

@@ -30,6 +30,8 @@ interface QuotationManagementProps {
   onDeleteQuotation: (id: string) => void;
   onConvertQuotationToInvoice: (quotation: Quotation) => void;
   onNavigate: (page: string) => void;
+  onAddClient: (client: Client) => void;
+  onAddProduct: (product: Product) => void;
   onFeatureBlocked?: (featureName: string) => void;
 }
 
@@ -43,7 +45,9 @@ export default function QuotationManagement({
   onDeleteQuotation,
   onConvertQuotationToInvoice,
   onNavigate,
-  onFeatureBlocked
+  onFeatureBlocked,
+  onAddClient,
+  onAddProduct
 }: QuotationManagementProps) {
   const isExpired = user.subscription.status === 'expired' || new Date(user.subscription.expiryDate) < new Date();
   
@@ -323,7 +327,7 @@ export default function QuotationManagement({
       address: qcAddress || '-',
       createdAt: new Date().toISOString()
     };
-    clients.push(newClient); // local push for instant state sync
+    onAddClient(newClient);
     setSelectedClientId(newClient.id);
     setQuickClientModal(false);
     setQcName('');
@@ -342,7 +346,7 @@ export default function QuotationManagement({
       unit: qpUnit,
       description: qpDesc
     };
-    products.push(newProduct);
+    onAddProduct(newProduct);
     
     // Auto-select this newly created product in the specified item row
     const rawSub = 1 * qpPrice;
@@ -1305,7 +1309,9 @@ export default function QuotationManagement({
           <button
             onClick={() => {
               if (isExpired && onFeatureBlocked) {
-                onFeatureBlocked('Pembuatan Penawaran Harga Baru (Quotation)');
+                onFeatureBlocked,
+  onAddClient,
+  onFeatureBlocked('Pembuatan Penawaran Harga Baru (Quotation)');
               } else {
                 setViewMode('create');
               }
@@ -1462,7 +1468,9 @@ export default function QuotationManagement({
                               <button
                                 onClick={() => {
                                   if (isExpired && onFeatureBlocked) {
-                                    onFeatureBlocked('Konversi Penawaran ke Invoice Baru');
+                                    onFeatureBlocked,
+  onAddClient,
+  onFeatureBlocked('Konversi Penawaran ke Invoice Baru');
                                   } else {
                                     onConvertQuotationToInvoice(q);
                                   }
@@ -2173,7 +2181,9 @@ export default function QuotationManagement({
                 <button
                   onClick={() => {
                     if (isExpired && onFeatureBlocked) {
-                      onFeatureBlocked('Konversi Penawaran ke Invoice Baru');
+                      onFeatureBlocked,
+  onAddClient,
+  onFeatureBlocked('Konversi Penawaran ke Invoice Baru');
                     } else {
                       onConvertQuotationToInvoice(selectedQuotation);
                     }
