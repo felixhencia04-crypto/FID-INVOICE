@@ -178,7 +178,7 @@ export default function QrisPaymentBox({
   const cardBg = isDarkMode ? 'bg-slate-950 border-slate-800/80' : 'bg-gray-50 border-gray-200/60';
 
   return (
-    <div className={`w-full max-w-lg mx-auto rounded-3xl border shadow-xl overflow-hidden transition-all duration-300 ${containerBg}`}>
+    <div className={`w-full max-w-lg mx-auto rounded-3xl border shadow-xl overflow-hidden transition-all duration-300 ${containerBg} ${isDarkMode ? "dark" : ""}`}>
       <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-5 text-white flex justify-between items-center">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-white/10 rounded-xl">

@@ -92,7 +92,7 @@ export default function PaymentHistorySection({
   };
 
   return (
-    <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-gray-100 shadow-sm'} space-y-5 text-left`}>
+    <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-slate-900/60 border-slate-800 dark' : 'bg-white border-gray-100 shadow-sm'} space-y-5 text-left`}>
       <div className="flex justify-between items-center pb-3 border-b border-gray-100 dark:border-slate-800">
         <div>
           <h3 className={`font-display font-extrabold text-sm ${isDarkMode ? 'text-white' : 'text-brand-dark'}`}>
