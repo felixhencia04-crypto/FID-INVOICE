@@ -575,7 +575,7 @@ export default function LandingPage({ onNavigate, onSelectPlan }: LandingPagePro
                       </li>
                       <li className="flex items-start gap-2">
                         <Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                        <span><strong>Satu Akun SaaS Komplit:</strong> Menghemat biaya pendaftaran berlangganan tambahan karena bisa dikelola dari satu control center.</span>
+                        <span><strong>Satu Akun Komplit:</strong> Menghemat biaya pendaftaran berlangganan tambahan karena bisa dikelola dari satu control center.</span>
                       </li>
                     </ul>
 
@@ -1200,7 +1200,7 @@ export default function LandingPage({ onNavigate, onSelectPlan }: LandingPagePro
               
               <div className="mb-6 mt-2">
                 <span className="text-xs font-bold text-brand-primary uppercase tracking-wider">Professional</span>
-                <h3 className="text-2xl font-bold font-display text-brand-dark mt-1">SaaS Bisnis Lancar</h3>
+                <h3 className="text-2xl font-bold font-display text-brand-dark mt-1">Bisnis Lancar</h3>
                 <p className="text-xs text-gray-400 mt-1">Solusi komplit bagi para profesional & UMKM</p>
               </div>
 

@@ -1,5 +1,5 @@
 /**
- * FID INVOICE - SaaS Resend Transactional Email Service
+ * FID INVOICE - Resend Transactional Email Service
  * Enables sending real HTML emails to users' inboxes if Resend API Key is set in Owner Panel.
  */
 
@@ -128,7 +128,7 @@ export async function sendPasswordResetEmail(
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; color: #334155;">
       <div style="text-align: center; margin-bottom: 32px; border-bottom: 1px solid #f1f5f9; padding-bottom: 24px;">
         <h1 style="color: #0f172a; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.025em;">FID <span style="color: #1a4fbf;">INVOICE</span></h1>
-        <p style="color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin: 6px 0 0 0;">SaaS Invoice & Billing Cerdas UMKM</p>
+        <p style="color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin: 6px 0 0 0;">Invoice & Billing Cerdas UMKM</p>
       </div>
       
       <div style="font-size: 15px; line-height: 1.6; color: #334155;">

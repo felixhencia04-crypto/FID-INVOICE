@@ -94,7 +94,7 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
       // In this local state based app, we just simulate successful login and pass the profile back
       // Since it's a real Google login, we'll format a UserProfile and return it
       
-            const isOwnerEmail = email.toLowerCase().trim() === 'felix.hencia04@gmail.com' || email.toLowerCase().trim() === 'admin@fidinvoice.com';
+            const isOwnerEmail = email.toLowerCase().trim() === 'admin@fidinvoice.com';
       const futureDate = new Date();
       if (isOwnerEmail) {
         futureDate.setFullYear(futureDate.getFullYear() + 20);
@@ -359,7 +359,7 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
-      const isOwnerEmail = email.toLowerCase().trim() === 'felix.hencia04@gmail.com' || email.toLowerCase().trim() === 'admin@fidinvoice.com';
+      const isOwnerEmail = email.toLowerCase().trim() === 'admin@fidinvoice.com';
       const expiry = new Date();
       if (isOwnerEmail) {
         expiry.setFullYear(expiry.getFullYear() + 20); // 20 years perpetual

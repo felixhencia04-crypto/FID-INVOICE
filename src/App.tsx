@@ -898,9 +898,13 @@ export default function App() {
     }
     
     // Enforce Starter invoice limits
-    if (!isEditExisting && !isReceiptUpdate && currentUser.subscription.plan === 'starter' && invoices.length >= 5) {
-      setBlockedFeatureMessage('Batas Pembuatan Invoice (Starter: Max 5)');
-      return;
+    if (!isEditExisting && !isReceiptUpdate && currentUser.subscription.plan === 'starter') {
+      const currentMonth = new Date().toISOString().substring(0, 7);
+      const monthlyInvoices = invoices.filter(inv => inv.date.startsWith(currentMonth) && !inv.invoiceNumber.startsWith('KW-'));
+      if (monthlyInvoices.length >= 5) {
+        setBlockedFeatureMessage('Batas Pembuatan Invoice (Starter: Max 5 per bulan)');
+        return;
+      }
     }
     
     let nextInvoices = [];
@@ -1396,7 +1400,7 @@ export default function App() {
           <SubscriptionPage 
             user={currentUser!}
             currentClientCount={clients.length}
-            currentInvoiceCount={invoices.length}
+            currentInvoiceCount={currentUser?.subscription.plan === 'starter' ? invoices.filter(inv => inv.date.startsWith(new Date().toISOString().substring(0, 7)) && !inv.invoiceNumber.startsWith('KW-')).length : invoices.length}
             onSimulateQuota={handleSimulateQuota}
             onUpgradePlan={(plan, isYearly) => {
               const futureDate = new Date();
@@ -1658,7 +1662,7 @@ export default function App() {
             <div className="space-y-2">
               <h2 className="text-2xl sm:text-3xl font-display font-extrabold text-white leading-tight">Layanan Ditangguhkan (Expired)</h2>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Masa berlaku lisensi penagihan SaaS untuk owner <strong className="text-white">{currentUser?.fullName || 'Felix Hencia'}</strong> telah berakhir pada <strong className="text-red-400">{currentUser ? formatDateIndonesian(currentUser.subscription.expiryDate) : 'hari ini'}</strong>.
+                Masa berlaku lisensi penagihan untuk owner <strong className="text-white">{currentUser?.fullName || 'Felix Hencia'}</strong> telah berakhir pada <strong className="text-red-400">{currentUser ? formatDateIndonesian(currentUser.subscription.expiryDate) : 'hari ini'}</strong>.
               </p>
             </div>
           </div>
@@ -1746,7 +1750,7 @@ export default function App() {
             </div>
           )}
 
-          {/* SaaS subscription history and check status panel for lockout recovery */}
+          {/* subscription history and check status panel for lockout recovery */}
           <PaymentHistorySection 
             userId={currentUser.id}
             onRefreshUserStatus={() => {
@@ -1762,7 +1766,7 @@ export default function App() {
         </div>
 
         {/* Footer */}
-        <p className="text-[10px] text-slate-600 text-center uppercase tracking-widest font-mono">SaaS SECURE GATEWAY VERSI 2026.04</p>
+        <p className="text-[10px] text-slate-600 text-center uppercase tracking-widest font-mono">SECURE GATEWAY VERSI 2026.04</p>
       </div>
       <CallCenterChat currentUser={currentUser} onNavigate={setCurrentPage} />
       </>
@@ -2085,7 +2089,7 @@ export default function App() {
 
             <div className="space-y-3 text-xs text-gray-600 leading-relaxed mb-6">
               <p>
-                Masa berlaku lisensi penagihan SaaS untuk perusahaan Anda telah berakhir. Untuk menjaga kualitas layanan penagihan dan kepatuhan administrasi keuangan, tindakan <strong>{blockedFeatureMessage}</strong> dinonaktifkan sementara.
+                Masa berlaku lisensi penagihan untuk perusahaan Anda telah berakhir. Untuk menjaga kualitas layanan penagihan dan kepatuhan administrasi keuangan, tindakan <strong>{blockedFeatureMessage}</strong> dinonaktifkan sementara.
               </p>
               <p className="bg-gray-50 border border-gray-100 p-3 rounded-xl text-gray-500 text-[11px]">
                 💡 <strong>Catatan:</strong> Anda tetap memiliki akses penuh untuk masuk ke aplikasi, melihat riwayat invoice lama, mengunduh data klien/produk, mengekspor laporan keuangan, dan mengoreksi (edit) Nota Kredit yang sudah ada.

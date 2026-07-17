@@ -99,7 +99,7 @@ export default function PaymentHistorySection({
             Riwayat Tagihan & Status Aktivasi
           </h3>
           <p className="text-[10px] text-slate-400 mt-0.5">
-            Daftar transaksi perpanjangan SaaS beserta verifikasi instan
+            Daftar transaksi perpanjangan beserta verifikasi instan
           </p>
         </div>
         <button

@@ -80,7 +80,7 @@ export default function SubscriptionPage({
       {/* Header */}
       <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
         <h1 className="text-2xl font-display font-extrabold text-brand-dark">Langganan FID INVOICE Anda</h1>
-        <p className="text-xs text-gray-400 mt-1">Kelola lisensi SaaS, siklus pembayaran, dan kuota fitur Anda</p>
+        <p className="text-xs text-gray-400 mt-1">Kelola lisensi , siklus pembayaran, dan kuota fitur Anda</p>
       </div>
 
       {/* Expiry Simulator Box (Secret Control Panel for evaluation) */}
@@ -134,14 +134,25 @@ export default function SubscriptionPage({
               <span className="px-2.5 py-1 rounded-full bg-brand-primary-light text-brand-primary font-black text-[10px] uppercase font-mono tracking-widest">{user.subscription.plan} Plan</span>
               <h2 className="text-2xl font-extrabold text-brand-dark pt-1.5 capitalize">Paket {user.subscription.plan}</h2>
               <p className="text-xs text-gray-500">
-                Lisensi berlaku sampai dengan: <strong className="text-brand-dark">{formatDateIndonesian(user.subscription.expiryDate)}</strong>
+                Lisensi berlaku sampai dengan: <strong className="text-brand-dark">
+                  {daysRemaining > 3650 ? 'Seumur Hidup (Lifetime)' : formatDateIndonesian(user.subscription.expiryDate)}
+                </strong>
               </p>
             </div>
 
             {/* Countdown Badge */}
-            <div className="p-4 rounded-xl bg-brand-primary-light/40 border border-brand-primary/5 text-center shrink-0 min-w-[100px]">
-              <p className="text-2xl font-black font-display text-brand-primary">{daysRemaining}</p>
-              <p className="text-[9px] text-brand-primary font-bold uppercase tracking-wider mt-0.5">Hari Tersisa</p>
+                        <div className="p-4 rounded-xl bg-brand-primary-light/40 border border-brand-primary/5 text-center shrink-0 min-w-[100px] flex flex-col justify-center items-center">
+              {daysRemaining > 3650 ? (
+                <>
+                  <p className="text-xl font-black font-display text-brand-primary">LIFETIME</p>
+                  <p className="text-[9px] text-brand-primary font-bold uppercase tracking-wider mt-0.5">Lisensi Aktif</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-2xl font-black font-display text-brand-primary">{daysRemaining}</p>
+                  <p className="text-[9px] text-brand-primary font-bold uppercase tracking-wider mt-0.5">Hari Tersisa</p>
+                </>
+              )}
             </div>
           </div>
 
@@ -166,7 +177,7 @@ export default function SubscriptionPage({
             {/* Quota bar 2: Invoices */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-gray-500">Penerbitan Invoice Keseluruhan</span>
+                <span className="text-gray-500">{user.subscription.plan === 'starter' ? 'Penerbitan Invoice (Bulan Ini)' : 'Penerbitan Invoice Keseluruhan'}</span>
                 <span className="font-bold text-brand-dark">{user.subscription.plan === 'starter' ? `${currentInvoiceCount} / 5` : 'Tak Terbatas (Unlimited)'}</span>
               </div>
               <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -241,7 +252,7 @@ export default function SubscriptionPage({
               <div>
                 <span className="text-[9px] font-black tracking-widest text-gray-400 uppercase font-mono">TRIAL</span>
                 <h4 className="font-bold text-sm text-brand-dark mt-1">Starter Free</h4>
-                <p className="text-[10px] text-gray-400 mt-1">Max 5 Invoice, 1 Klien Aktif.</p>
+                <ul className="text-[10px] text-gray-500 mt-2 space-y-1 list-disc list-inside"><li>Max 5 Invoice / bulan</li><li>Max 1 Klien Aktif</li><li>Template Invoice Dasar</li><li>Ekspor PDF Instan</li></ul>
               </div>
               <div>
                 <span className="text-xl font-black text-brand-dark">Rp 0</span>
@@ -262,8 +273,8 @@ export default function SubscriptionPage({
             <div className="space-y-4">
               <div>
                 <span className="text-[9px] font-black tracking-widest text-brand-primary uppercase font-mono">MOST POPULAR</span>
-                <h4 className="font-bold text-sm text-brand-dark mt-1">Professional</h4>
-                <p className="text-[10px] text-gray-400 mt-1">Unlimited Invoice, 50 Klien, Auto Reminder.</p>
+                <h4 className="font-bold text-sm text-brand-dark mt-1">Professional <br/><span className="text-[10px] text-gray-500 font-normal">Bisnis Lancar</span></h4>
+                <ul className="text-[10px] text-gray-500 mt-2 space-y-1 list-disc list-inside"><li>Unlimited Invoice</li><li>Maksimal 50 Klien</li><li>10 Template Premium</li><li>Ekspor PDF + Excel</li><li>Pengingat WhatsApp Otomatis</li><li>Laporan Grafik Keuangan Dasar</li></ul>
               </div>
               <div>
                 <div className="flex items-baseline gap-1">
@@ -293,8 +304,8 @@ export default function SubscriptionPage({
             <div className="space-y-4">
               <div>
                 <span className="text-[9px] font-black tracking-widest text-brand-gold uppercase font-mono">BIG SCALE</span>
-                <h4 className="font-bold text-sm text-brand-dark mt-1">Enterprise</h4>
-                <p className="text-[10px] text-gray-400 mt-1">Unlimited Klien, Custom Branding, API Akses.</p>
+                <h4 className="font-bold text-sm text-brand-dark mt-1">Enterprise <br/><span className="text-[10px] text-gray-500 font-normal">Kustom Skala Besar</span></h4>
+                <ul className="text-[10px] text-gray-500 mt-2 space-y-1 list-disc list-inside"><li>Unlimited Invoice & Klien</li><li>Custom Template & Branding Anda</li><li>White-Label (Hapus Brand FID)</li><li>Akses API khusus</li><li>Dedicated Support CS Prioritas</li></ul>
               </div>
               <div>
                 <div className="flex items-baseline gap-1">

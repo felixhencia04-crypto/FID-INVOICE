@@ -163,7 +163,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
               <div style="text-align: center; margin-bottom: 24px;">
                 <h1 style="color: #1e293b; margin: 0; font-size: 24px; font-weight: bold;">FID <span style="color: #1a4fbf;">INVOICE</span></h1>
-                <p style="color: #64748b; font-size: 12px; margin: 4px 0 0 0;">SaaS Invoice & Billing Cerdas</p>
+                <p style="color: #64748b; font-size: 12px; margin: 4px 0 0 0;">Invoice & Billing Cerdas</p>
               </div>
               <div style="border-top: 4px solid #1a4fbf; padding-top: 20px; color: #334155;">
                 <p style="font-size: 16px; font-weight: bold;">Koneksi Berhasil! 🎉</p>
@@ -176,7 +176,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
                   • Status Gateway: Aktif (Live)
                 </div>
                 <p style="font-size: 13px; color: #64748b; margin-top: 24px; line-height: 1.5; border-top: 1px solid #f1f5f9; padding-top: 16px;">
-                  Pesan ini dikirim secara otomatis oleh modul email integrasi FID INVOICE SaaS Gateway. Mohon tidak membalas pesan ini langsung.
+                  Pesan ini dikirim secara otomatis oleh modul email integrasi FID INVOICE Gateway. Mohon tidak membalas pesan ini langsung.
                 </p>
               </div>
             </div>
@@ -1167,7 +1167,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
               Gerbang Keamanan Pemilik
             </h2>
             <p className="text-[10px] text-brand-gold font-mono uppercase tracking-widest font-bold">
-              FID INVOICE SaaS PLATFORM
+              FID INVOICE PLATFORM
             </p>
           </div>
 
@@ -1642,7 +1642,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
           return pay.status === paymentFilter;
         });
 
-        // 1. Calculate SaaS Metrics for Premium Dashboard
+        // 1. Calculate Metrics for Premium Dashboard
         const activePayingSubscribers = users.filter(u => 
           (u.subscription.status === 'active' || u.subscription.status === 'trial') && 
           u.subscription.plan !== 'free'
@@ -1825,7 +1825,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
           const url = URL.createObjectURL(blob);
           const link = document.createElement("a");
           link.setAttribute("href", url);
-          link.setAttribute("download", `Laporan_Keuangan_SaaS_FID_Invoice_${new Date().toISOString().split('T')[0]}.csv`);
+          link.setAttribute("download", `Laporan_Keuangan__FID_Invoice_${new Date().toISOString().split('T')[0]}.csv`);
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
@@ -1845,7 +1845,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                📊 Analisis & Metrik SaaS
+                📊 Analisis & Metrik 
               </button>
               <button
                 onClick={() => setPaymentsSubTab('list')}
@@ -1869,7 +1869,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
                       Dashboard Pendapatan & Analisis Keuangan Pro
                     </h3>
                     <p className="text-xs text-slate-400 mt-1">
-                      Pantau indikator pertumbuhan SaaS (MRR, ARR, LTV) serta analisis distribusi pembayaran pelanggan setia Anda secara real-time.
+                      Pantau indikator pertumbuhan (MRR, ARR, LTV) serta analisis distribusi pembayaran pelanggan setia Anda secara real-time.
                     </p>
                   </div>
                   <button
@@ -1881,7 +1881,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
                   </button>
                 </div>
 
-                {/* SaaS Metrics KPI Grid */}
+                {/* Metrics KPI Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {/* Card 1: Total Omzet Terverifikasi */}
                   <div className="bg-slate-900 border border-slate-850 p-5 rounded-2xl space-y-1 relative overflow-hidden group">
@@ -2117,7 +2117,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
                         🎯 <strong>Tips Owner:</strong> {payingConversionRate === '0.0' ? (
                           <span>Ayo dapatkan pelanggan pertama Anda! Bagikan platform Anda ke grup pengusaha dan tawarkan paket Professional gratis 7 hari untuk memicu konversi ke sistem berbayar.</span>
                         ) : Number(payingConversionRate) < 5 ? (
-                          <span>Rasio berbayar Anda ({payingConversionRate}%) masih di bawah rata-rata industri SaaS (5%). Pertimbangkan mengirim email pemberitahuan otomatis 3 hari sebelum paket uji coba / trial berakhir.</span>
+                          <span>Rasio berbayar Anda ({payingConversionRate}%) masih di bawah rata-rata industri (5%). Pertimbangkan mengirim email pemberitahuan otomatis 3 hari sebelum paket uji coba / trial berakhir.</span>
                         ) : (
                           <span>Luar biasa! Rasio berbayar Anda ({payingConversionRate}%) sangat sehat. Manfaatkan sistem <strong>Gateway Otomatis Transfer Manual</strong> untuk mengurangi beban administratif validasi transfer manual Anda!</span>
                         )}
@@ -2921,7 +2921,7 @@ app.post('/api/send-verification', async (req, res) => {
               <button onClick={() => setActionModal(null)} className="text-gray-400 hover:text-gray-600 text-lg">×</button>
             </div>
             
-            <p className="text-xs text-gray-500">Ubah paket SaaS untuk owner <strong className="text-brand-dark">{selectedUser.fullName}</strong>:</p>
+            <p className="text-xs text-gray-500">Ubah paket untuk owner <strong className="text-brand-dark">{selectedUser.fullName}</strong>:</p>
             
             <div className="space-y-3 pt-2">
               <button onClick={() => handleChangePlan(selectedUser.id, 'starter')} className="w-full text-left p-3 border border-gray-150 rounded-xl text-xs hover:border-brand-primary font-bold flex justify-between items-center">
