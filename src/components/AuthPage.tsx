@@ -110,6 +110,7 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
         phone: user.phoneNumber || '',
         profilePicture: photoUrl,
         subscription: {
+          plan: selectedPlan,
           status: isOwnerEmail ? 'active' : 'trial',
           expiryDate: futureDate.toISOString().split('T')[0],
           trialDaysRemaining: isOwnerEmail ? 0 : 3
@@ -223,6 +224,7 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
           businessName: userData.businessName || 'Bisnis Anda',
           email: user.email || '',
           phone: userData.phone || '',
+          subscription: { plan: selectedPlan, status: "active", expiryDate: "2099-12-31", trialDaysRemaining: 0 },
         };
         onAuthSuccess(profile);
       } else {
@@ -233,6 +235,7 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
           businessName: 'Bisnis Anda',
           email: user.email || '',
           phone: '',
+          subscription: { plan: selectedPlan, status: "active", expiryDate: "2099-12-31", trialDaysRemaining: 0 },
         };
         onAuthSuccess(profile);
       }
@@ -368,6 +371,7 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
         email,
         phone,
         subscription: {
+          plan: selectedPlan,
           status: isOwnerEmail ? 'active' : 'trial',
           expiryDate: expiry.toISOString().split('T')[0],
           trialDaysRemaining: isOwnerEmail ? 0 : 3

@@ -1309,9 +1309,7 @@ export default function QuotationManagement({
           <button
             onClick={() => {
               if (isExpired && onFeatureBlocked) {
-                onFeatureBlocked,
-  onAddClient,
-  onFeatureBlocked('Pembuatan Penawaran Harga Baru (Quotation)');
+                onFeatureBlocked('Pembuatan Penawaran Harga Baru (Quotation)');
               } else {
                 setViewMode('create');
               }
@@ -1468,9 +1466,7 @@ export default function QuotationManagement({
                               <button
                                 onClick={() => {
                                   if (isExpired && onFeatureBlocked) {
-                                    onFeatureBlocked,
-  onAddClient,
-  onFeatureBlocked('Konversi Penawaran ke Invoice Baru');
+                                    onFeatureBlocked('Konversi Penawaran ke Invoice Baru');
                                   } else {
                                     onConvertQuotationToInvoice(q);
                                   }
@@ -2181,9 +2177,7 @@ export default function QuotationManagement({
                 <button
                   onClick={() => {
                     if (isExpired && onFeatureBlocked) {
-                      onFeatureBlocked,
-  onAddClient,
-  onFeatureBlocked('Konversi Penawaran ke Invoice Baru');
+                      onFeatureBlocked('Konversi Penawaran ke Invoice Baru');
                     } else {
                       onConvertQuotationToInvoice(selectedQuotation);
                     }

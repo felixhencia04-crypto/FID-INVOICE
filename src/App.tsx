@@ -1341,6 +1341,8 @@ export default function App() {
             user={currentUser!}
             clients={clients}
             invoices={invoices}
+            onAddClient={handleAddClient}
+            onEditClient={handleEditClient}
             onDeleteClient={handleDeleteClient}
             
             onFeatureBlocked={(featureName) => setBlockedFeatureMessage(featureName)}
@@ -1354,6 +1356,7 @@ export default function App() {
             products={products}
             
             onEditProduct={handleEditProduct}
+            onAddProduct={handleAddProduct}
             onDeleteProduct={handleDeleteProduct}
             
             onFeatureBlocked={(featureName) => setBlockedFeatureMessage(featureName)}
