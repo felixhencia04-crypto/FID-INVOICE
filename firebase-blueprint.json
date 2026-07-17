@@ -1,0 +1,73 @@
+{
+  "models": [
+    {
+      "name": "User",
+      "path": "users/{uid}",
+      "description": "User profiles",
+      "fields": {
+        "email": "string",
+        "name": "string",
+        "role": "string",
+        "plan": "string",
+        "active": "boolean",
+        "createdAt": "timestamp"
+      }
+    },
+    {
+      "name": "Client",
+      "path": "users/{uid}/clients/{clientId}",
+      "description": "Clients belonging to a user",
+      "fields": {
+        "name": "string",
+        "email": "string"
+      }
+    },
+    {
+      "name": "Product",
+      "path": "users/{uid}/products/{productId}",
+      "description": "Products belonging to a user",
+      "fields": {
+        "name": "string",
+        "price": "number"
+      }
+    },
+    {
+      "name": "Invoice",
+      "path": "users/{uid}/invoices/{invoiceId}",
+      "description": "Invoices belonging to a user",
+      "fields": {
+        "number": "string",
+        "total": "number"
+      }
+    },
+    {
+      "name": "Quotation",
+      "path": "users/{uid}/quotations/{quotationId}",
+      "description": "Quotations belonging to a user",
+      "fields": {
+        "number": "string"
+      }
+    },
+    {
+      "name": "SupportChat",
+      "path": "supportChats/{chatId}",
+      "description": "Support chat threads",
+      "fields": {
+        "userId": "string",
+        "userName": "string",
+        "status": "string",
+        "updatedAt": "timestamp"
+      }
+    },
+    {
+      "name": "ChatMessage",
+      "path": "supportChats/{chatId}/messages/{messageId}",
+      "description": "Messages inside a support chat",
+      "fields": {
+        "senderId": "string",
+        "text": "string",
+        "timestamp": "timestamp"
+      }
+    }
+  ]
+}

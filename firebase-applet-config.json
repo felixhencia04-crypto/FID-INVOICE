@@ -7,5 +7,6 @@
   "storageBucket": "watchful-obelisk-rj4jh.firebasestorage.app",
   "messagingSenderId": "1071651225729",
   "measurementId": "",
-  "oAuthClientId": "1071651225729-mavq2vn82aciakbu8ibio83ptrhnvrck.apps.googleusercontent.com"
+  "oAuthClientId": "1071651225729-mavq2vn82aciakbu8ibio83ptrhnvrck.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
 }

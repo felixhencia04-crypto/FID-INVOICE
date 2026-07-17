@@ -19,7 +19,7 @@
     "canvas": "^3.2.3",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
-    "firebase": "^12.15.0",
+    "firebase": "^12.16.0",
     "html2canvas": "^1.4.1",
     "html2pdf.js": "^0.14.0",
     "jokul-nodejs-library": "^2.0.1",

@@ -513,12 +513,9 @@ export default function App() {
   }, [currentUser]);
 
   // Helper to load or seed databases for a specific user
-  const loadUserData = (userId: string) => {
-    const key = `fid_invoice_user_${userId}_data`;
-    const savedData = localStorage.getItem(key);
-    
-    if (savedData) {
-      const parsed = JSON.parse(savedData);
+  const loadUserData = async (userId: string) => {
+    const parsed = await loadUserDataFromFirebase(userId);
+    if (parsed) {
       
       // Healer/Deduplication check for historical duplicates
       const rawInvoices = parsed.invoices || [];
@@ -663,21 +660,20 @@ export default function App() {
   };
 
   const saveUserDataToStorage = (userId: string, updatedClients: Client[], updatedProducts: Product[], updatedInvoices: Invoice[], updatedQuotations?: Quotation[]) => {
-    const key = `fid_invoice_user_${userId}_data`;
-    
-    // Safety deduplication on save
     const uniqueInvoices = updatedInvoices.filter((inv, idx, self) => self.findIndex(i => i.id === inv.id) === idx);
     const uniqueClients = updatedClients.filter((c, idx, self) => self.findIndex(i => i.id === c.id) === idx);
     const uniqueProducts = updatedProducts.filter((p, idx, self) => self.findIndex(i => i.id === p.id) === idx);
     const uniqueQuotations = (updatedQuotations || quotations).filter((q, idx, self) => self.findIndex(i => i.id === q.id) === idx);
-
     const dataToSave = {
       clients: uniqueClients,
       products: uniqueProducts,
       invoices: uniqueInvoices,
       quotations: uniqueQuotations
     };
-    localStorage.setItem(key, JSON.stringify(dataToSave));
+    // Save to LocalStorage for offline fallback
+    localStorage.setItem(`fid_invoice_user_${userId}_data`, JSON.stringify(dataToSave));
+    // Save to Firebase
+    saveUserDataToFirebase(userId, dataToSave);
   };
 
   // Auth callbacks

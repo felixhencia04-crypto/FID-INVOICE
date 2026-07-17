@@ -12,7 +12,7 @@
         "canvas": "^3.2.3",
         "dotenv": "^17.2.3",
         "express": "^4.21.2",
-        "firebase": "^12.15.0",
+        "firebase": "^12.16.0",
         "html2canvas": "^1.4.1",
         "html2pdf.js": "^0.14.0",
         "jokul-nodejs-library": "^2.0.1",
@@ -168,7 +168,7 @@
 
     "@firebase/analytics-types": ["@firebase/analytics-types@0.8.4", "", {}, "sha512-zQ+XTgkwH6CY/eUSHJRP7e4LxM30RCxlCmob5sy2axs25GE3Ny0XdgpDscMTHHQIGqWkxPXad4w2Mw9sCgT8zQ=="],
 
-    "@firebase/app": ["@firebase/app@0.15.0", "", { "dependencies": { "@firebase/component": "0.7.3", "@firebase/logger": "0.5.1", "@firebase/util": "1.15.1", "idb": "7.1.1", "tslib": "^2.1.0" } }, "sha512-soIskolmGgbpi0K/MfrjtdpO1220qRCbXA4Z8Qx3lM+fVwA3q40m+OM+7zBHd2nuQCrLXb33L6Oc1aBH3Y26AQ=="],
+    "@firebase/app": ["@firebase/app@0.15.1", "", { "dependencies": { "@firebase/component": "0.7.3", "@firebase/logger": "0.5.1", "@firebase/util": "1.15.1", "idb": "7.1.1", "tslib": "^2.1.0" } }, "sha512-iD9+Z5HcPo0Uop5f72/VYMeXwKucBhW7iFrISkJFvQ+lSZikTNgTz0FgAtaaTkAG0pEZSnCymA2Fu49n0rcufQ=="],
 
     "@firebase/app-check": ["@firebase/app-check@0.12.0", "", { "dependencies": { "@firebase/component": "0.7.3", "@firebase/logger": "0.5.1", "@firebase/util": "1.15.1", "tslib": "^2.1.0" }, "peerDependencies": { "@firebase/app": "0.x" } }, "sha512-wMeT6HLWRAuW7Cp/5UjWBGKgjPNxWNOoNf4PRIv0weljoGMZVeqbUY7wNBWTI2/31cX1NlXx8gQruDLsUShB3Q=="],
 
@@ -178,7 +178,7 @@
 
     "@firebase/app-check-types": ["@firebase/app-check-types@0.5.4", "", {}, "sha512-xV7JsIyzVr15aA7f3Pi0rB9gdBuVubs89FGA8VkRYA4g0l78poADgdfrScgf7NndSg9mm7cR7PJyY0+t22KaGw=="],
 
-    "@firebase/app-compat": ["@firebase/app-compat@0.5.14", "", { "dependencies": { "@firebase/app": "0.15.0", "@firebase/component": "0.7.3", "@firebase/logger": "0.5.1", "@firebase/util": "1.15.1", "tslib": "^2.1.0" } }, "sha512-rgFmiofYsdS9ZG/Bht3OBxJtPD3zWE1cffShWubEm+4+qZeyzCbmtb1q6jOEjN9fB7uufe4rQmWOPXouR3758Q=="],
+    "@firebase/app-compat": ["@firebase/app-compat@0.5.15", "", { "dependencies": { "@firebase/app": "0.15.1", "@firebase/component": "0.7.3", "@firebase/logger": "0.5.1", "@firebase/util": "1.15.1", "tslib": "^2.1.0" } }, "sha512-HaiSM9TwbGIR4b7F6+UncHWlqdH89eeY7VUskaOGOlI2PxHS5Z+6hHsYGvNLy0SHDE6zyXO+3QSA6a4aqQxsqA=="],
 
     "@firebase/app-types": ["@firebase/app-types@0.9.5", "", { "dependencies": { "@firebase/logger": "0.5.1" } }, "sha512-YevqTjvo7Iujsa9Dwowmd6dSoElhzmD63ZSrq6bzjvQ6POjYgNjOFHLmNIgJs48eNO093NCERibuFnxbfOvU7A=="],
 
@@ -232,9 +232,9 @@
 
     "@firebase/performance-types": ["@firebase/performance-types@0.2.4", "", {}, "sha512-kJSEk7b0uhpcPRyL4SQ/GPujLqk52XNKcXlnsKDbWGAb9vugcLvOU3u6zfEdwd+d8hWJb5S5ZizV1JFFI0nkKg=="],
 
-    "@firebase/remote-config": ["@firebase/remote-config@0.8.5", "", { "dependencies": { "@firebase/component": "0.7.3", "@firebase/installations": "0.6.22", "@firebase/logger": "0.5.1", "@firebase/util": "1.15.1", "tslib": "^2.1.0" }, "peerDependencies": { "@firebase/app": "0.x" } }, "sha512-zb+7CDGFP2wYVF1LXQoYIFdoESIQM3p0+uiW1welw8+zvDxAL50K75PKTXXtunJADUrksTVpV7mD0pn54vzJRA=="],
+    "@firebase/remote-config": ["@firebase/remote-config@0.9.0", "", { "dependencies": { "@firebase/component": "0.7.3", "@firebase/installations": "0.6.22", "@firebase/logger": "0.5.1", "@firebase/util": "1.15.1", "tslib": "^2.1.0" }, "peerDependencies": { "@firebase/app": "0.x" } }, "sha512-aNn6/eJhsSC+gXSToiXiYPv3ypLP9lFtzl+/q9kSOBPB7D6rae0Rt2uENZZLXGYbEgHYKQblOhijJAXGbbJjtQ=="],
 
-    "@firebase/remote-config-compat": ["@firebase/remote-config-compat@0.2.26", "", { "dependencies": { "@firebase/component": "0.7.3", "@firebase/logger": "0.5.1", "@firebase/remote-config": "0.8.5", "@firebase/remote-config-types": "0.5.1", "@firebase/util": "1.15.1", "tslib": "^2.1.0" }, "peerDependencies": { "@firebase/app-compat": "0.x" } }, "sha512-uC57Tc7GYYOCnMgLkGIVf999XlaYaPDONoa54c93YTKDctlvCZI89z0zQ2RbhGR8Zf+QuCbQHs/99vqoE84a7g=="],
+    "@firebase/remote-config-compat": ["@firebase/remote-config-compat@0.2.27", "", { "dependencies": { "@firebase/component": "0.7.3", "@firebase/logger": "0.5.1", "@firebase/remote-config": "0.9.0", "@firebase/remote-config-types": "0.5.1", "@firebase/util": "1.15.1", "tslib": "^2.1.0" }, "peerDependencies": { "@firebase/app-compat": "0.x" } }, "sha512-FYwYWwSbUdza/pRX4NpSBm/Pimntum3jEIBpnDn5Ey1jHNWgjxrE8Z5SB4mCHd5wGCoYd3koJzxARl/VWIEx0Q=="],
 
     "@firebase/remote-config-types": ["@firebase/remote-config-types@0.5.1", "", {}, "sha512-cX/1LT6KQwkXzck2eSzeKnuvXZCyr8qaPpDcikoJs7jmI+oBOXixpDLeDtWj1U6GNMkIoXrEDNoyT2Ypcyp5/A=="],
 
@@ -672,7 +672,7 @@
 
     "find-my-way-ts": ["find-my-way-ts@0.1.6", "", {}, "sha512-a85L9ZoXtNAey3Y6Z+eBWW658kO/MwR7zIafkIUPUMf3isZG0NCs2pjW2wtjxAKuJPxMAsHUIP4ZPGv0o5gyTA=="],
 
-    "firebase": ["firebase@12.15.0", "", { "dependencies": { "@firebase/ai": "2.13.1", "@firebase/analytics": "0.10.22", "@firebase/analytics-compat": "0.2.28", "@firebase/app": "0.15.0", "@firebase/app-check": "0.12.0", "@firebase/app-check-compat": "0.4.5", "@firebase/app-compat": "0.5.14", "@firebase/app-types": "0.9.5", "@firebase/auth": "1.13.3", "@firebase/auth-compat": "0.6.8", "@firebase/data-connect": "0.7.1", "@firebase/database": "1.1.3", "@firebase/database-compat": "2.1.4", "@firebase/firestore": "4.16.0", "@firebase/firestore-compat": "0.4.11", "@firebase/functions": "0.13.5", "@firebase/functions-compat": "0.4.5", "@firebase/installations": "0.6.22", "@firebase/installations-compat": "0.2.22", "@firebase/messaging": "0.13.0", "@firebase/messaging-compat": "0.2.27", "@firebase/performance": "0.7.12", "@firebase/performance-compat": "0.2.25", "@firebase/remote-config": "0.8.5", "@firebase/remote-config-compat": "0.2.26", "@firebase/storage": "0.14.3", "@firebase/storage-compat": "0.4.3", "@firebase/util": "1.15.1" } }, "sha512-p0YTLcRSTiBXMx9sGr4ZNSfLjc/RVBEw4C/TXjVMtw65+6E1Pbm47UY3F4/AqRoDobEcNX3gsbPGy7jPjxbgSQ=="],
+    "firebase": ["firebase@12.16.0", "", { "dependencies": { "@firebase/ai": "2.13.1", "@firebase/analytics": "0.10.22", "@firebase/analytics-compat": "0.2.28", "@firebase/app": "0.15.1", "@firebase/app-check": "0.12.0", "@firebase/app-check-compat": "0.4.5", "@firebase/app-compat": "0.5.15", "@firebase/app-types": "0.9.5", "@firebase/auth": "1.13.3", "@firebase/auth-compat": "0.6.8", "@firebase/data-connect": "0.7.1", "@firebase/database": "1.1.3", "@firebase/database-compat": "2.1.4", "@firebase/firestore": "4.16.0", "@firebase/firestore-compat": "0.4.11", "@firebase/functions": "0.13.5", "@firebase/functions-compat": "0.4.5", "@firebase/installations": "0.6.22", "@firebase/installations-compat": "0.2.22", "@firebase/messaging": "0.13.0", "@firebase/messaging-compat": "0.2.27", "@firebase/performance": "0.7.12", "@firebase/performance-compat": "0.2.25", "@firebase/remote-config": "0.9.0", "@firebase/remote-config-compat": "0.2.27", "@firebase/storage": "0.14.3", "@firebase/storage-compat": "0.4.3", "@firebase/util": "1.15.1" } }, "sha512-CNw6hFBdONkzF8UGLDx/RDRY9gVa5VmJNHd7qi4gdmA3ZuLkuOrhmWefB2l+FN+OxFpN77Itq7aO6zlTi780ag=="],
 
     "follow-redirects": ["follow-redirects@1.16.0", "", {}, "sha512-y5rN/uOsadFT/JfYwhxRS5R7Qce+g3zG97+JrtFZlC9klX/W5hD7iiLzScI4nZqUS7DNUdhPgw4xI8W2LuXlUw=="],
 

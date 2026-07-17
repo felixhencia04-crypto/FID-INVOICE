@@ -41,7 +41,7 @@ async function dispatchEmail(payload: ResendEmailPayload): Promise<boolean> {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ ...payload, apiKey }),
+      body: JSON.stringify({ ...payload }), // Server must handle apiKey
     });
 
     if (response.ok) {

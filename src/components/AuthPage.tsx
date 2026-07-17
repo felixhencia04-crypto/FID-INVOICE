@@ -204,130 +204,54 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
     setIsLoading(true);
 
     try {
-      // Look up or initialize credentials map in localStorage, prioritizing server sync
-      let credentials: Record<string, string> = {};
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
       
-      try {
-        const credRes = await fetch('/api/credentials');
-        if (credRes.ok) {
-          const credData = await credRes.json();
-          if (credData.success && credData.credentials) {
-            credentials = credData.credentials;
-            localStorage.setItem('fid_invoice_user_credentials', JSON.stringify(credentials));
-          }
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        if (userData.active === false) {
+           setErrorMsg('Akun belum diverifikasi. Silakan cek email Anda untuk verifikasi, atau hubungi admin.');
+           setErrorType('other');
+           await signOut(auth);
+           setIsLoading(false);
+           return;
         }
-      } catch (err) {
-        console.warn('Could not fetch credentials from server, falling back to local');
+        
+        const profile: UserProfile = {
+          id: user.uid,
+          fullName: userData.name || userData.fullName || 'User',
+          businessName: userData.businessName || 'Bisnis Anda',
+          email: user.email || '',
+          phone: userData.phone || '',
+          avatarUrl: '',
+          plan: userData.plan || 'starter'
+        };
+        onAuthSuccess(profile);
+      } else {
+        // Handle migration case if doc doesn't exist but auth does
+        const profile: UserProfile = {
+          id: user.uid,
+          fullName: 'Migrated User',
+          businessName: 'Bisnis Anda',
+          email: user.email || '',
+          phone: '',
+          avatarUrl: '',
+          plan: 'starter'
+        };
+        onAuthSuccess(profile);
       }
-
-      if (Object.keys(credentials).length === 0) {
-        const storedCreds = localStorage.getItem('fid_invoice_user_credentials');
-        if (storedCreds) {
-          credentials = JSON.parse(storedCreds);
-        } else {
-          credentials = {
-            'felix.hencia04@gmail.com': 'admin123',
-            'admin@fidinvoice.com': 'admin123',
-            'demo@fidinvoice.com': 'demo123'
-          };
-          localStorage.setItem('fid_invoice_user_credentials', JSON.stringify(credentials));
-        }
-      }
-
-      const lowerEmail = email.toLowerCase().trim();
-      
-      // Check if email exists in credentials
-      if (!(lowerEmail in credentials)) {
-        setIsLoading(false);
-        setErrorType('email_incorrect');
-        setErrorMsg(`Email '${email}' belum terdaftar di sistem kami. Harap periksa e-mail kembali atau buat akun baru.`);
-        return;
-      }
-
-      // Check if password matches
-      if (credentials[lowerEmail] !== password) {
-        setIsLoading(false);
-        setErrorType('password_incorrect');
-        setErrorMsg('Kata sandi yang Anda masukkan salah. Silakan periksa kembali kata sandi atau gunakan fitur Lupa Password.');
-        return;
-      }
-
-      // Look up in our simulated user database in localStorage
-      let users: UserProfile[] = [];
-      try {
-        const userRes = await fetch('/api/users');
-        if (userRes.ok) {
-          const userData = await userRes.json();
-          if (userData.success && userData.users) {
-            users = userData.users;
-            localStorage.setItem('fid_invoice_all_users', JSON.stringify(users));
-          }
-        }
-      } catch (err) {
-        console.warn('Could not fetch users from server, falling back to local');
-      }
-
-      if (users.length === 0) {
-        const allUsersStr = localStorage.getItem('fid_invoice_all_users');
-        if (allUsersStr) {
-          users = JSON.parse(allUsersStr);
-        }
-      }
-
-      // Check if user matches
-      let matchedUser = users.find(u => u.email.toLowerCase() === lowerEmail);
-
-      // Create matched user dynamically if missing but credentials matched
-      if (!matchedUser) {
-        const defaultEmails = ['felix.hencia04@gmail.com', 'admin@fidinvoice.com', 'demo@fidinvoice.com'];
-        if (defaultEmails.includes(lowerEmail)) {
-          const d = new Date();
-          d.setDate(d.getDate() + (lowerEmail === 'felix.hencia04@gmail.com' ? 30 : 3)); // 30 days active or trial
-          matchedUser = {
-            id: lowerEmail === 'felix.hencia04@gmail.com' ? 'user-demo' : 'user_' + Math.random().toString(36).substring(2, 9),
-            fullName: lowerEmail === 'felix.hencia04@gmail.com' ? 'Felix Hencia' : email.split('@')[0].toUpperCase(),
-            businessName: lowerEmail === 'felix.hencia04@gmail.com' ? 'PT Sinergi Kreatif' : 'Bisnis ' + email.split('@')[0],
-            email: email,
-            phone: '081234567890',
-            subscription: {
-              status: lowerEmail === 'felix.hencia04@gmail.com' ? 'active' : 'trial',
-              plan: selectedPlan,
-              expiryDate: d.toISOString().split('T')[0],
-              trialDaysRemaining: lowerEmail === 'felix.hencia04@gmail.com' ? 30 : 3
-            }
-          };
-          users.push(matchedUser);
-          localStorage.setItem('fid_invoice_all_users', JSON.stringify(users));
-        } else {
-          // User exists in credentials but not in allUsers, which means they are unverified
-          setIsLoading(false);
-          setErrorType('other');
-          setErrorMsg('Akun Anda tidak ditemukan atau sudah dihapus. Jika akun Anda telah dihapus oleh Administrator, Anda wajib mendaftar kembali sebagai akun baru.');
-          
-          // Clean up orphaned credentials locally
-          delete credentials[lowerEmail];
-          localStorage.setItem('fid_invoice_user_credentials', JSON.stringify(credentials));
-          return;
-        }
-      }
-
-      // Check if account is blocked
-      if (matchedUser.subscription.status === 'blocked') {
-        setIsLoading(false);
+    } catch (error: any) {
+      console.error(error);
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        setErrorMsg('Email atau password salah.');
         setErrorType('other');
-        setErrorMsg('🚫 Akun Anda telah ditangguhkan (Blocked) oleh Pemilik Aplikasi karena pelanggaran kebijakan. Silakan hubungi Customer Service Fidya/Andi di live chat pojok bawah untuk klarifikasi lebih lanjut.');
-        return;
+      } else {
+        setErrorMsg(error.message || 'Terjadi kesalahan saat login.');
+        setErrorType('other');
       }
-
+    } finally {
       setIsLoading(false);
-      setErrorType('none');
-      setErrorMsg('');
-      onAuthSuccess(matchedUser);
-    } catch (error) {
-      console.error('Login error:', error);
-      setIsLoading(false);
-      setErrorType('other');
-      setErrorMsg('Terjadi kesalahan saat masuk. Silakan coba lagi.');
     }
   };
 

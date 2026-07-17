@@ -1,5 +1,5 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -12,7 +12,6 @@ const firebaseConfig = {
   messagingSenderId: "1071651225729"
 };
 
-export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
