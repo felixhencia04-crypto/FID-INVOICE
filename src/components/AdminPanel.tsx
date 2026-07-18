@@ -669,12 +669,33 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
 
   // Load support chat threads using Firestore onSnapshot
   useEffect(() => {
+    // ONE-TIME SYNC: migrate local/legacy chats to Firestore if they exist
+    try {
+      const localThreads = JSON.parse(localStorage.getItem('fid_invoice_support_chats') || '[]');
+      if (localThreads.length > 0) {
+        localThreads.forEach(async (t: any) => {
+          const id = t.userId || t.id;
+          if (id) {
+            await setDoc(doc(db, 'supportChats', id), t, { merge: true }).catch(() => {});
+            
+            // Also sync messages
+            const msgs = JSON.parse(localStorage.getItem(`fid_invoice_chat_${id}`) || '[]');
+            msgs.forEach(async (m: any) => {
+              await setDoc(doc(db, 'supportChats', id, 'messages', m.id), m, { merge: true }).catch(() => {});
+            });
+          }
+        });
+      }
+    } catch(e) {}
+
     const q = query(collection(db, 'supportChats'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const threads = snapshot.docs.map(d => d.data());
       threads.sort((a: any, b: any) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime());
       localStorage.setItem('fid_invoice_support_chats', JSON.stringify(threads));
       setChatThreads(threads);
+    }, (error) => {
+      console.warn('Chat threads snapshot error:', error);
     });
     return () => unsubscribe();
   }, []);
@@ -687,6 +708,8 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
       msgs.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime() || 0);
       localStorage.setItem(`fid_invoice_chat_${selectedChatId}`, JSON.stringify(msgs));
       setChatMessages(msgs);
+    }, (error) => {
+      console.warn('Chat msgs snapshot error:', error);
     });
     return () => unsubscribe();
   }, [selectedChatId]);
@@ -2684,11 +2707,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
                           if (idx > -1) {
                             list[idx].unreadForOwner = false;
                             localStorage.setItem('fid_invoice_support_chats', JSON.stringify(list));
-                            fetch('/api/chats/sync', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ threads: [list[idx]] })
-                            }).catch(() => {});
+                            updateDoc(doc(db, 'supportChats', idToSelect), { unreadForOwner: false }).catch(() => {});
                           }
                         }}
                         className={`w-full p-3 rounded-xl text-left border transition-all flex items-start gap-3 cursor-pointer relative ${

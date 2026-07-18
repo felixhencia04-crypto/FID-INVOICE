@@ -117,6 +117,8 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
           return prev;
         });
       }
+    }, (error) => {
+      console.warn('Call center snapshot error:', error);
     });
 
     return () => unsubscribe();
