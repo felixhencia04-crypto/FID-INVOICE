@@ -12,7 +12,7 @@ import {
 } from 'recharts';
 import { UserProfile, AppNotification } from '../types';
 import { db } from '../lib/firebase';
-import { collection, doc, getDocs, setDoc, onSnapshot, query, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc, onSnapshot, query, updateDoc, orderBy } from 'firebase/firestore';
 import { formatCurrency, formatDateIndonesian } from '../utils';
 import ConfirmModal from './ConfirmModal';
 import { getNotifications, saveNotifications, createNotification, syncNotifications } from '../utils/notificationService';
@@ -698,8 +698,8 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
 
     const q = query(collection(db, 'supportChats'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const threads = snapshot.docs.map(d => d.data());
-      threads.sort((a: any, b: any) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime());
+      const threads = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      threads.sort((a: any, b: any) => (b.timestamp_ms || 0) - (a.timestamp_ms || 0));
       localStorage.setItem('fid_invoice_support_chats', JSON.stringify(threads));
       setChatThreads(threads);
     }, (error) => {
@@ -726,24 +726,25 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
 
   useEffect(() => {
     if (!selectedChatId) return;
-    const q = query(collection(db, 'supportChats', selectedChatId, 'messages'));
+
+    // Listen to messages for the selected chat
+    const q = query(collection(db, 'supportChats', selectedChatId, 'messages'), orderBy('timestamp_ms', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs = snapshot.docs.map(d => d.data());
       
-      const extractTime = (id: string) => {
-        const match = id.match(/\d{10,}/);
-        return match ? parseInt(match[0]) : 0;
-      };
-
-      msgs.sort((a: any, b: any) => extractTime(a.id) - extractTime(b.id));
-      
       localStorage.setItem(`fid_invoice_chat_${selectedChatId}`, JSON.stringify(msgs));
       setChatMessages(msgs);
+
+      // Mark thread as read for owner if active
+      const currentThread = chatThreads.find(c => c.id === selectedChatId);
+      if (currentThread?.unreadForOwner) {
+        setDoc(doc(db, 'supportChats', selectedChatId), { unreadForOwner: false }, { merge: true }).catch(() => {});
+      }
     }, (error) => {
       console.warn('Chat msgs snapshot error:', error);
     });
     return () => unsubscribe();
-  }, [selectedChatId]);
+  }, [selectedChatId, chatThreads.length]); // Re-run if thread count changes to ensure we have currentThread
 
   const loadChatThreads = () => {};
   const loadChatMessages = (userId: string) => {};
@@ -914,59 +915,44 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
   };
 
   // 4. Send support chat reply as Customer Service (Andi)
-  const handleSendChatReply = () => {
+  const handleSendChatReply = async () => {
     if (!selectedChatId || !replyText.trim()) return;
 
+    const userText = replyText.trim();
+    setReplyText('');
+
     const now = new Date();
-    const formattedTime = now.toTimeString().split(' ')[0].substring(0, 5);
+    const timestamp_ms = now.getTime();
+    const formattedTime = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
     const newMsg = {
-      id: 'msg_reply_owner_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
+      id: `msg_reply_owner_${timestamp_ms}_${Math.random().toString(36).substring(2, 7)}`,
       sender: 'agent' as const,
       senderName: 'Andi - Customer Experience',
-      text: replyText,
-      timestamp: formattedTime
+      text: userText,
+      timestamp: formattedTime,
+      timestamp_ms
     };
 
-    const chatKey = 'fid_invoice_chat_' + selectedChatId;
-    const updatedMsgs = [...chatMessages, newMsg];
-    localStorage.setItem(chatKey, JSON.stringify(updatedMsgs));
-    setChatMessages(updatedMsgs);
+    // Optimistic local update
+    setChatMessages(prev => [...prev, newMsg]);
 
-    // Update index list & metadata
-    const indexStr = localStorage.getItem('fid_invoice_support_chats') || '[]';
-    let indexList = JSON.parse(indexStr);
-    const targetIdx = indexList.findIndex((item: any) => (item.userId === selectedChatId) || (item.id === selectedChatId));
-    
-    // Find metadata from state if not in indexList
-    const currentThread = chatThreads.find(c => (c.userId === selectedChatId) || (c.id === selectedChatId));
-    let threadMeta = currentThread ? { ...currentThread } : null;
-
-    if (targetIdx > -1) {
-      indexList[targetIdx] = {
-        ...indexList[targetIdx],
-        lastMessage: replyText,
-        lastUpdated: new Date().toISOString(),
+    // Firestore Sync
+    try {
+      const threadRef = doc(db, 'supportChats', selectedChatId);
+      const msgRef = doc(db, 'supportChats', selectedChatId, 'messages', newMsg.id);
+      
+      await setDoc(msgRef, newMsg);
+      await setDoc(threadRef, {
+        lastMessage: userText,
+        lastUpdated: now.toISOString(),
+        timestamp_ms,
         unreadForOwner: false,
         unreadForUser: true
-      };
-      threadMeta = indexList[targetIdx];
-      localStorage.setItem('fid_invoice_support_chats', JSON.stringify(indexList));
-      setChatThreads(indexList.sort((a: any, b: any) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()));
-    } else if (threadMeta) {
-      // If we have it from state but not localStorage, update it for Firestore
-      threadMeta.lastMessage = replyText;
-      threadMeta.lastUpdated = new Date().toISOString();
-      threadMeta.unreadForOwner = false;
-      threadMeta.unreadForUser = true;
+      }, { merge: true });
+    } catch (err) {
+      console.error('Failed to sync admin reply:', err);
     }
-
-    // Sync to Firestore
-    if (threadMeta) {
-      setDoc(doc(db, 'supportChats', selectedChatId), threadMeta).catch(() => {});
-    }
-    setDoc(doc(db, 'supportChats', selectedChatId, 'messages', newMsg.id), newMsg).catch(() => {});
-
-    setReplyText('');
 
     // Play pleasant UI send sound
     try {
@@ -974,7 +960,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
       osc.connect(gain);
       gain.connect(ctx.destination);
       gain.gain.setValueAtTime(0.04, ctx.currentTime);

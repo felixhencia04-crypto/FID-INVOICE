@@ -21,6 +21,7 @@ interface ChatMessage {
   senderName: string;
   text: string;
   timestamp: string;
+  timestamp_ms?: number;
 }
 
 export default function CallCenterChat({ currentUser, onNavigate }: CallCenterChatProps) {
@@ -91,35 +92,42 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
   useEffect(() => {
     if (!userId) return;
     
-    // Initial load
-    loadChatHistory();
+    // Initial load from localStorage for quick paint
+    const chatKey = 'fid_invoice_chat_' + userId;
+    const cached = localStorage.getItem(chatKey);
+    if (cached) {
+      try {
+        setMessages(JSON.parse(cached));
+      } catch (e) {}
+    }
 
     // Listen to thread metadata for unreadForUser badge
-    const threadUnsubscribe = onSnapshot(doc(db, 'supportChats', userId), (docSnap) => {
+    const threadRef = doc(db, 'supportChats', userId);
+    const threadUnsubscribe = onSnapshot(threadRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if (data.unreadForUser && !isOpen) {
+        // If chat is currently open, we mark it as read immediately in Firestore
+        if (isOpen && data.unreadForUser) {
+          setDoc(threadRef, { unreadForUser: false }, { merge: true }).catch(() => {});
+          setUnreadCount(0);
+        } else if (data.unreadForUser && !isOpen) {
           setUnreadCount(1);
         } else if (!data.unreadForUser) {
           setUnreadCount(0);
         }
       }
-    }, (error) => {});
+    }, (error) => {
+      console.warn('Thread metadata snapshot error:', error);
+    });
 
-    const q = query(collection(db, 'supportChats', userId, 'messages'));
+    // Listen to messages
+    const q = query(collection(db, 'supportChats', userId, 'messages'), orderBy('timestamp_ms', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs = snapshot.docs.map(d => d.data() as ChatMessage);
       
-      const extractTime = (id: string) => {
-        const match = id.match(/\d{10,}/);
-        return match ? parseInt(match[0]) : 0;
-      };
-
-      msgs.sort((a, b) => extractTime(a.id) - extractTime(b.id)); // robust sort
-      
       if (msgs.length > 0) {
         setMessages(prev => {
-          // Check if there is actually a NEW message that is from an agent
+          // If a NEW message arrived from an agent and we are closed, increment unread and play sound
           if (msgs.length > prev.length) {
             const lastMsg = msgs[msgs.length - 1];
             if (lastMsg.sender === 'agent' && !isOpen) {
@@ -143,16 +151,16 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
           return msgs;
         });
         
-        // Keep localStorage in sync for offline support
-        localStorage.setItem('fid_invoice_chat_' + userId, JSON.stringify(msgs));
+        // Keep localStorage in sync as a cache
+        localStorage.setItem(chatKey, JSON.stringify(msgs));
       }
     }, (error) => {
-      console.warn('Call center snapshot error:', error);
+      console.warn('Call center messages snapshot error:', error);
     });
 
     return () => {
+      threadUnsubscribe();
       unsubscribe();
-      if (typeof threadUnsubscribe === 'function') threadUnsubscribe();
     };
   }, [userId, isOpen]);
 
@@ -182,7 +190,7 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
     localStorage.setItem('fid_invoice_support_chats', JSON.stringify(updatedThreads));
   };
 
-  const handleSendMessage = (e?: React.FormEvent) => {
+  const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputText.trim()) return;
 
@@ -190,54 +198,54 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
     setInputText('');
 
     const now = new Date();
-    const formattedTime = now.toTimeString().split(' ')[0].substring(0, 5);
+    const timestamp_ms = now.getTime();
+    const formattedTime = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
     const newMsg: ChatMessage = {
-      id: 'msg_user_' + Date.now(),
+      id: `msg_user_${timestamp_ms}_${Math.random().toString(36).substring(2, 7)}`,
       sender: 'user',
       senderName: userName,
       text: userText,
-      timestamp: formattedTime
+      timestamp: formattedTime,
+      timestamp_ms
     };
 
-    // Update messages
-    const chatKey = 'fid_invoice_chat_' + userId;
+    // Optimistic local update
     const updatedMsgs = [...messages, newMsg];
     setMessages(updatedMsgs);
+    const chatKey = 'fid_invoice_chat_' + userId;
     localStorage.setItem(chatKey, JSON.stringify(updatedMsgs));
 
-    // Update global threads index list for Admin Panel
-    const threadStr = localStorage.getItem('fid_invoice_support_chats') || '[]';
-    let threads = JSON.parse(threadStr);
-    const targetIdx = threads.findIndex((t: any) => (t.userId === userId) || (t.id === userId));
-
+    // Update global threads index list for Admin Panel (Metadata)
     const threadInfo = {
       userId,
       userName,
       userEmail,
       lastMessage: userText,
       lastUpdated: now.toISOString(),
-      unreadForOwner: true, // Requires admin attention
+      timestamp_ms,
+      unreadForOwner: true,
       unreadForUser: false
     };
 
-    if (targetIdx > -1) {
-      threads[targetIdx] = threadInfo;
-    } else {
-      threads.push(threadInfo);
+    // Firestore Sync
+    try {
+      const threadRef = doc(db, 'supportChats', userId);
+      const msgRef = doc(db, 'supportChats', userId, 'messages', newMsg.id);
+      
+      await setDoc(threadRef, threadInfo, { merge: true });
+      await setDoc(msgRef, newMsg);
+    } catch (err) {
+      console.error('Failed to sync to Firestore:', err);
     }
-    localStorage.setItem('fid_invoice_support_chats', JSON.stringify(threads));
 
-    setDoc(doc(db, 'supportChats', userId), threadInfo).catch(e => console.error(e));
-    setDoc(doc(db, 'supportChats', userId, 'messages', newMsg.id), newMsg).catch(e => console.error(e));
-
-    // Play a crisp keyboard click send chime
+    // Play chime
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(659.25, ctx.currentTime); // E5
+      osc.frequency.setValueAtTime(659.25, ctx.currentTime);
       osc.connect(gain);
       gain.connect(ctx.destination);
       gain.gain.setValueAtTime(0.02, ctx.currentTime);
@@ -246,78 +254,68 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
       osc.stop(ctx.currentTime + 0.1);
     } catch (ex) {}
 
-    // Check if an agent has ever replied in this thread
-    const hasAgentReplied = updatedMsgs.some(m => m.sender === 'agent');
-    
-    // Simulate smart AI bot (Fidya) auto-reply ONLY if agent hasn't replied yet
+    // Fidya Bot Auto-reply (Only if no agent has replied)
+    const hasAgentReplied = messages.some(m => m.sender === 'agent');
     if (!hasAgentReplied) {
       setIsTyping(true);
-      setTimeout(() => {
+      setTimeout(async () => {
         setIsTyping(false);
         let replyText = '';
+        const lowerText = userText.toLowerCase();
+        if (lowerText.includes('billing') || lowerText.includes('bayar') || lowerText.includes('rekening') || lowerText.includes('qris') || lowerText.includes('paket') || lowerText.includes('harga')) {
+          replyText = `Terkait pembayaran paket langganan di FID INVOICE, Anda dapat melakukan perpanjangan instan menggunakan **metode transfer bank manual** maupun **QRIS Dinamis** di halaman Billing.\n\nKami menawarkan paket: \n1. **Starter** (Coba gratis 3 hari penuh)\n2. **Professional** (Rp 99.000 / bulan)\n3. **Enterprise** (Rp 249.000 / bulan)\n\nJika Anda sudah melakukan transfer, mohon kirimkan bukti transfer tersebut di sini, atau konfirmasikan ke Admin Panel kami agar segera diaktifkan.`;
+        } else if (lowerText.includes('expired') || lowerText.includes('habis') || lowerText.includes('blokir') || lowerText.includes('tangguh')) {
+          replyText = `Masa aktif akun Anda terdeteksi habis atau ditangguhkan. Jangan khawatir, seluruh data rekam keuangan, riwayat invoice, serta data klien Anda tersimpan dengan aman di database kami.\n\nUntuk mengaktifkannya kembali, silakan klik tombol **"Perpanjang Sekarang"** pada banner merah di bagian atas aplikasi Anda, atau pilih paket langganan Anda kembali. Kami akan mengaktifkan akses pembuatan invoice Anda dalam hitungan detik setelah pembayaran terverifikasi.`;
+        } else if (lowerText.includes('error') || lowerText.includes('bug') || lowerText.includes('rusak') || lowerText.includes('tidak bisa')) {
+          replyText = `Mohon maaf atas ketidaknyamanan yang Kakak alami. Saat ini aplikasi berjalan di mode demo sandbox yang aman.\n\nApakah Anda ingin saya meneruskan kendala teknis ini kepada **Bapak Andi (Supervisor Customer Experience)** agar dapat meninjau langsung database Anda? Silakan tuliskan detail error yang ditemui.`;
+        } else if (lowerText.includes('invoice') || lowerText.includes('buat invoice') || lowerText.includes('faktur')) {
+          replyText = `Untuk membuat invoice baru, silakan navigasi ke tab **"Buat Invoice"** di menu samping kiri Anda. Jika akun Anda dalam masa tenggang atau habis, silakan lakukan perpanjangan lisensi terlebih dahulu.\n\nAnda dapat menambahkan Logo Perusahaan, Pajak PPN (11%), Diskon, serta Tanda Tangan Digital pada invoice Anda secara instan.`;
+        } else if (lowerText.includes('quotation') || lowerText.includes('penawaran')) {
+          replyText = `Fitur **Penawaran Harga (Quotation Management)** memudahkan Anda membuat estimasi biaya profesional untuk prospek klien Anda. Anda dapat mengirim penawaran via WhatsApp/Email, dan mengonversinya menjadi **Invoice Resmi** hanya dengan 1-klik jika klien menyetujuinya!`;
+        } else {
+          replyText = `Terima kasih atas pesan Kakak! Saya Fidya, asisten AI, telah merekam pertanyaan tersebut.\n\nPesan Kakak telah saya daftarkan ke antrean support dan diteruskan kepada **Bapak Andi (Supervisor Customer Experience)**. Beliau akan membalas secara manual langsung ke dalam chat ini.\n\nMohon tetap membuka aplikasi atau memeriksa widget chat ini secara berkala ya Kak!`;
+        }
 
-      const lowerText = userText.toLowerCase();
+        const botNow = new Date();
+        const botTimestampMs = botNow.getTime();
+        const botMsg: ChatMessage = {
+          id: `msg_bot_${botTimestampMs}`,
+          sender: 'bot',
+          senderName: 'Fidya - AI Support',
+          text: replyText,
+          timestamp: botNow.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+          timestamp_ms: botTimestampMs
+        };
 
-      if (lowerText.includes('billing') || lowerText.includes('bayar') || lowerText.includes('rekening') || lowerText.includes('qris') || lowerText.includes('paket') || lowerText.includes('harga')) {
-        replyText = `Terkait pembayaran paket langganan di FID INVOICE, Anda dapat melakukan perpanjangan instan menggunakan **metode transfer bank manual** maupun **QRIS Dinamis** di halaman Billing.\n\nKami menawarkan paket: \n1. **Starter** (Coba gratis 3 hari penuh)\n2. **Professional** (Rp 99.000 / bulan)\n3. **Enterprise** (Rp 249.000 / bulan)\n\nJika Anda sudah melakukan transfer, mohon kirimkan bukti transfer tersebut di sini, atau konfirmasikan ke Admin Panel kami agar segera diaktifkan.`;
-      } else if (lowerText.includes('expired') || lowerText.includes('habis') || lowerText.includes('blokir') || lowerText.includes('tangguh')) {
-        replyText = `Masa aktif akun Anda terdeteksi habis atau ditangguhkan. Jangan khawatir, seluruh data rekam keuangan, riwayat invoice, serta data klien Anda tersimpan dengan aman di database kami.\n\nUntuk mengaktifkannya kembali, silakan klik tombol **"Perpanjang Sekarang"** pada banner merah di bagian atas aplikasi Anda, atau pilih paket langganan Anda kembali. Kami akan mengaktifkan akses pembuatan invoice Anda dalam hitungan detik setelah pembayaran terverifikasi.`;
-      } else if (lowerText.includes('error') || lowerText.includes('bug') || lowerText.includes('rusak') || lowerText.includes('tidak bisa')) {
-        replyText = `Mohon maaf atas ketidaknyamanan yang Kakak alami. Saat ini aplikasi berjalan di mode demo sandbox yang aman.\n\nApakah Anda ingin saya meneruskan kendala teknis ini kepada **Bapak Andi (Supervisor Customer Experience)** agar dapat meninjau langsung database Anda? Silakan tuliskan detail error yang ditemui.`;
-      } else if (lowerText.includes('invoice') || lowerText.includes('buat invoice') || lowerText.includes('faktur')) {
-        replyText = `Untuk membuat invoice baru, silakan navigasi ke tab **"Buat Invoice"** di menu samping kiri Anda. Jika akun Anda dalam masa tenggang atau habis, silakan lakukan perpanjangan lisensi terlebih dahulu.\n\nAnda dapat menambahkan Logo Perusahaan, Pajak PPN (11%), Diskon, serta Tanda Tangan Digital pada invoice Anda secara instan.`;
-      } else if (lowerText.includes('quotation') || lowerText.includes('penawaran')) {
-        replyText = `Fitur **Penawaran Harga (Quotation Management)** memudahkan Anda membuat estimasi biaya profesional untuk prospek klien Anda. Anda dapat mengirim penawaran via WhatsApp/Email, dan mengonversinya menjadi **Invoice Resmi** hanya dengan 1-klik jika klien menyetujuinya!`;
-      } else {
-        replyText = `Terima kasih atas pesan Kakak! Saya Fidya, asisten AI, telah merekam pertanyaan tersebut.\n\nPesan Kakak telah saya daftarkan ke antrean support dan diteruskan kepada **Bapak Andi (Supervisor Customer Experience)**. Beliau akan membalas secara manual langsung ke dalam chat ini.\n\nMohon tetap membuka aplikasi atau memeriksa widget chat ini secara berkala ya Kak!`;
-      }
+        // Sync bot reply to Firestore
+        const botMsgRef = doc(db, 'supportChats', userId, 'messages', botMsg.id);
+        const threadRef = doc(db, 'supportChats', userId);
+        
+        await setDoc(botMsgRef, botMsg);
+        await setDoc(threadRef, { 
+          lastMessage: replyText.substring(0, 60) + '...',
+          lastUpdated: botNow.toISOString(),
+          timestamp_ms: botTimestampMs,
+          unreadForOwner: true
+        }, { merge: true });
 
-      const botMsg: ChatMessage = {
-        id: 'msg_bot_' + Date.now(),
-        sender: 'bot',
-        senderName: 'Fidya - AI Support',
-        text: replyText,
-        timestamp: new Date().toTimeString().split(' ')[0].substring(0, 5)
-      };
-
-      setMessages(prev => {
-        const finalMsgs = [...prev, botMsg];
-        localStorage.setItem(chatKey, JSON.stringify(finalMsgs));
-        return finalMsgs;
-      });
-
-      // Update index with bot reply too
-      const currentThreads = JSON.parse(localStorage.getItem('fid_invoice_support_chats') || '[]');
-      const myIdx = currentThreads.findIndex((t: any) => t.userId === userId);
-      if (myIdx > -1) {
-        currentThreads[myIdx].lastMessage = replyText.substring(0, 60) + '...';
-        currentThreads[myIdx].lastUpdated = new Date().toISOString();
-        localStorage.setItem('fid_invoice_support_chats', JSON.stringify(currentThreads));
-      }
-
-      // Sync bot message to Firestore
-      setDoc(doc(db, 'supportChats', userId), { ...threadInfo, unreadForOwner: true, lastMessage: replyText.substring(0, 60) + '...' }).catch(e => console.error(e));
-      setDoc(doc(db, 'supportChats', userId, 'messages', botMsg.id), botMsg).catch(e => console.error(e));
-
-      // Play soft incoming notification sound
-      try {
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-        osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1); // E5
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        gain.gain.setValueAtTime(0.03, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.25);
-      } catch (e) {}
-
+        // Notification chime
+        try {
+          const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+          osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          gain.gain.setValueAtTime(0.03, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.25);
+        } catch (e) {}
       }, 1200);
     }
-
   };
 
   const handleQuickQuestion = (question: string) => {
