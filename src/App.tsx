@@ -30,7 +30,6 @@ import QrisPaymentBox from './components/QrisPaymentBox';
 import PaymentHistorySection from './components/PaymentHistorySection';
 import ReceiptManagement from './components/ReceiptManagement';
 import QuotationManagement from './components/QuotationManagement';
-import CallCenterChat from './components/CallCenterChat';
 import NotificationPopup from './components/NotificationPopup';
 import NotificationCenter from './components/NotificationCenter';
 import ToastContainer from './components/ToastContainer';
@@ -1550,7 +1549,6 @@ export default function App() {
             setCurrentPage('register');
           }}
         />
-        <CallCenterChat currentUser={currentUser} onNavigate={setCurrentPage} />
       </>
     );
   }
@@ -1565,7 +1563,6 @@ export default function App() {
           onNavigate={(page) => setCurrentPage(page)}
           onAuthSuccess={handleAuthSuccess}
         />
-        <CallCenterChat currentUser={currentUser} onNavigate={setCurrentPage} />
       </>
     );
   }
@@ -1604,7 +1601,6 @@ export default function App() {
             setCurrentPage('register');
           }}
         />
-        <CallCenterChat currentUser={currentUser} onNavigate={setCurrentPage} />
       </>
     );
   }
@@ -1665,7 +1661,6 @@ export default function App() {
         </div>
 
       </div>
-      <CallCenterChat currentUser={currentUser} onNavigate={setCurrentPage} />
       </>
     );
   }
@@ -1807,7 +1802,6 @@ export default function App() {
         {/* Footer */}
         <p className="text-[10px] text-slate-600 text-center uppercase tracking-widest font-mono">SECURE GATEWAY VERSI 2026.04</p>
       </div>
-      <CallCenterChat currentUser={currentUser} onNavigate={setCurrentPage} />
       </>
     );
   }
@@ -2156,7 +2150,6 @@ export default function App() {
         </div>
       )}
 
-      <CallCenterChat currentUser={currentUser} onNavigate={setCurrentPage} />
       <NotificationPopup currentUser={currentUser} />
       <ToastContainer toasts={toasts} onClose={(id) => setToasts(prev => prev.filter(t => t.id !== id))} />
     </div>

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   ShieldCheck, Users, TrendingUp, AlertTriangle, CheckCircle, 
-  Trash2, Mail, Ban, ShieldAlert, CalendarPlus, Key, Award,
+  Trash2, Ban, ShieldAlert, CalendarPlus, Key, Award,
   Sparkles, DollarSign, Download, Settings, RefreshCw, X,
-  MessageSquare, Send, Check, Hourglass, Clock, AlertCircle,
+  Check, Hourglass, Clock, AlertCircle,
   Lock, Unlock, Eye, EyeOff, Shield, Bell
 } from 'lucide-react';
 import { 
@@ -12,7 +12,7 @@ import {
 } from 'recharts';
 import { UserProfile, AppNotification } from '../types';
 import { db } from '../lib/firebase';
-import { collection, doc, getDocs, setDoc, onSnapshot, query, updateDoc, orderBy } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc, onSnapshot, query, updateDoc } from 'firebase/firestore';
 import { formatCurrency, formatDateIndonesian } from '../utils';
 import ConfirmModal from './ConfirmModal';
 import { getNotifications, saveNotifications, createNotification, syncNotifications } from '../utils/notificationService';
@@ -68,7 +68,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
   const [searchTerm, setSearchTerm] = useState('');
   
   // NEW TOP-LEVEL ADMIN VIEW SECTIONS
-  const [adminSection, setAdminSection] = useState<'users' | 'payments' | 'chats' | 'email_settings' | 'notifications'>('users');
+  const [adminSection, setAdminSection] = useState<'users' | 'payments' | 'email_settings' | 'notifications'>('users');
 
   // PAYMENT RECAP FILTER STATE
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'pending' | 'confirmed' | 'rejected'>('all');
@@ -93,7 +93,6 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
     setTimeout(() => {
       loadUsers();
       loadPendingPayments();
-      loadChatThreads();
       loadNotifications();
       setIsRefreshing(false);
       setShowRefreshSuccess(true);
@@ -214,18 +213,6 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
   
   // NEW OWNER STATES
   const [pendingPayments, setPendingPayments] = useState<any[]>([]);
-  const [chatThreads, setChatThreads] = useState<any[]>([]);
-  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
-  const [chatMessages, setChatMessages] = useState<any[]>([]);
-  const [replyText, setReplyText] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Auto-scroll to bottom of chat
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [chatMessages]);
 
   // Selected user for action dropdown/modal
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
@@ -675,81 +662,6 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
     }
   };
 
-  // Load support chat threads using Firestore onSnapshot
-  useEffect(() => {
-    // ONE-TIME SYNC: migrate local/legacy chats to Firestore if they exist
-    try {
-      const localThreads = JSON.parse(localStorage.getItem('fid_invoice_support_chats') || '[]');
-      if (localThreads.length > 0) {
-        localThreads.forEach(async (t: any) => {
-          const id = t.userId || t.id;
-          if (id) {
-            await setDoc(doc(db, 'supportChats', id), t, { merge: true }).catch(() => {});
-            
-            // Also sync messages
-            const msgs = JSON.parse(localStorage.getItem(`fid_invoice_chat_${id}`) || '[]');
-            msgs.forEach(async (m: any) => {
-              await setDoc(doc(db, 'supportChats', id, 'messages', m.id), m, { merge: true }).catch(() => {});
-            });
-          }
-        });
-      }
-    } catch(e) {}
-
-    const q = query(collection(db, 'supportChats'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const threads = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      threads.sort((a: any, b: any) => (b.timestamp_ms || 0) - (a.timestamp_ms || 0));
-      localStorage.setItem('fid_invoice_support_chats', JSON.stringify(threads));
-      setChatThreads(threads);
-    }, (error) => {
-      console.warn('Chat threads snapshot error:', error);
-    });
-
-    // Fallback: Listen to localStorage changes across tabs
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'fid_invoice_support_chats' && e.newValue) {
-        try {
-          const threads = JSON.parse(e.newValue);
-          threads.sort((a: any, b: any) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime());
-          setChatThreads(threads);
-        } catch(err) {}
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-
-    return () => {
-      unsubscribe();
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!selectedChatId) return;
-
-    // Listen to messages for the selected chat
-    const q = query(collection(db, 'supportChats', selectedChatId, 'messages'), orderBy('timestamp_ms', 'asc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const msgs = snapshot.docs.map(d => d.data());
-      
-      localStorage.setItem(`fid_invoice_chat_${selectedChatId}`, JSON.stringify(msgs));
-      setChatMessages(msgs);
-
-      // Mark thread as read for owner if active
-      const currentThread = chatThreads.find(c => c.id === selectedChatId);
-      if (currentThread?.unreadForOwner) {
-        setDoc(doc(db, 'supportChats', selectedChatId), { unreadForOwner: false }, { merge: true }).catch(() => {});
-      }
-    }, (error) => {
-      console.warn('Chat msgs snapshot error:', error);
-    });
-    return () => unsubscribe();
-  }, [selectedChatId, chatThreads.length]); // Re-run if thread count changes to ensure we have currentThread
-
-  const loadChatThreads = () => {};
-  const loadChatMessages = (userId: string) => {};
-
-  // Load system notifications
   const loadNotifications = async () => {
     await syncNotifications();
     setNotificationsList(getNotifications());
@@ -759,7 +671,6 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
   useEffect(() => {
     loadUsers();
     loadPendingPayments();
-    loadChatThreads();
     loadNotifications();
 
     const handleUsersUpdate = () => {
@@ -776,11 +687,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
     const interval = setInterval(() => {
       loadUsers();
       loadPendingPayments();
-      loadChatThreads();
       loadNotifications();
-      if (selectedChatId) {
-        loadChatMessages(selectedChatId);
-      }
     }, 1500);
 
     return () => {
@@ -788,7 +695,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
       window.removeEventListener('fid_users_updated', handleUsersUpdate);
       window.removeEventListener('fid_payments_updated', handlePaymentsUpdate);
     };
-  }, [selectedChatId]);
+  }, []);
 
   // Check persistent lockout state on mount & cleanup session on unmount
   useEffect(() => {
@@ -912,62 +819,6 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
     saveUsersToStorage(updated);
     setNotif(`Sukses mengubah status blokir pengguna!`);
     setTimeout(() => setNotif(''), 3000);
-  };
-
-  // 4. Send support chat reply as Customer Service (Andi)
-  const handleSendChatReply = async () => {
-    if (!selectedChatId || !replyText.trim()) return;
-
-    const userText = replyText.trim();
-    setReplyText('');
-
-    const now = new Date();
-    const timestamp_ms = now.getTime();
-    const formattedTime = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-
-    const newMsg = {
-      id: `msg_reply_owner_${timestamp_ms}_${Math.random().toString(36).substring(2, 7)}`,
-      sender: 'agent' as const,
-      senderName: 'Andi - Customer Experience',
-      text: userText,
-      timestamp: formattedTime,
-      timestamp_ms
-    };
-
-    // Optimistic local update
-    setChatMessages(prev => [...prev, newMsg]);
-
-    // Firestore Sync
-    try {
-      const threadRef = doc(db, 'supportChats', selectedChatId);
-      const msgRef = doc(db, 'supportChats', selectedChatId, 'messages', newMsg.id);
-      
-      await setDoc(msgRef, newMsg);
-      await setDoc(threadRef, {
-        lastMessage: userText,
-        lastUpdated: now.toISOString(),
-        timestamp_ms,
-        unreadForOwner: false,
-        unreadForUser: true
-      }, { merge: true });
-    } catch (err) {
-      console.error('Failed to sync admin reply:', err);
-    }
-
-    // Play pleasant UI send sound
-    try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      gain.gain.setValueAtTime(0.04, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.15);
-    } catch (e) {}
   };
 
   // 5. Approve manual payment
@@ -1111,7 +962,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
       createNotification(
         'warning',
         'Pembayaran Ditolak / Dibatalkan',
-        `Pengajuan transfer Anda sebesar Rp ${(payRequest.amount || 0).toLocaleString('id-ID')} untuk Paket ${(payRequest.plan || '').toUpperCase()} ditolak atau dibatalkan oleh Admin. Harap periksa bukti transfer Anda atau hubungi dukungan CS melalui call center chat.`,
+        `Pengajuan transfer Anda sebesar Rp ${(payRequest.amount || 0).toLocaleString('id-ID')} untuk Paket ${(payRequest.plan || '').toUpperCase()} ditolak atau dibatalkan oleh Admin. Harap periksa bukti transfer Anda atau hubungi Admin kami.`,
         payRequest.userId
       );
     }
@@ -1369,7 +1220,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
             </div>
             <div>
               <h3 className="text-md font-extrabold text-white">Sinkronisasi Data Real-Time</h3>
-              <p className="text-xs text-slate-400 mt-1">Mengambil rekapitulasi pembayaran terbaru, status paket pengguna, dan pesan chat masuk...</p>
+              <p className="text-xs text-slate-400 mt-1">Mengambil rekapitulasi pembayaran terbaru dan status paket pengguna...</p>
             </div>
             <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
               <div className="bg-indigo-600 h-full animate-pulse" style={{ width: '100%' }}></div>
@@ -1457,21 +1308,6 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
           Verifikasi & Rekap Pembayaran
           {pendingPayments.filter(p => p.status === 'pending').length > 0 && (
             <span className="w-2 h-2 rounded-full bg-red-500 animate-ping absolute right-3 top-3" />
-          )}
-        </button>
-        <button 
-          onClick={() => {
-            setAdminSection('chats');
-            loadChatThreads();
-          }}
-          className={`px-5 py-3 text-xs sm:text-sm font-black flex items-center gap-2 border-b-2 transition-all cursor-pointer ${adminSection === 'chats' ? 'border-brand-gold text-white bg-slate-900/40' : 'border-transparent text-slate-400 hover:text-white'} relative`}
-        >
-          <Mail className="w-4 h-4 text-blue-400" />
-          Dukungan Pesan Masuk
-          {chatThreads.filter(c => c.unreadForOwner).length > 0 && (
-            <span className="w-5 h-5 flex items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ml-auto animate-pulse">
-              {chatThreads.filter(c => c.unreadForOwner).length}
-            </span>
           )}
         </button>
         <button 
@@ -2685,176 +2521,6 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
                   })
                 )}
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {adminSection === 'chats' && (
-        <div className="space-y-6">
-          <div className="p-4 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-xl text-xs leading-relaxed flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-blue-400 shrink-0" />
-            <div>
-              <strong>Kotak Layanan Pelanggan (Andi CS Mode):</strong> Di sini Anda dapat membaca dan membalas pertanyaan pengguna secara manual. 
-              Balasan Anda akan langsung masuk ke widget chat pengguna (Fidya Chatbot) secara real-time!
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 h-[550px]">
-            {/* Thread list (Left side - md:col-span-4) */}
-            <div className="md:col-span-4 bg-slate-900 border border-slate-850 rounded-2xl p-4 flex flex-col h-full overflow-hidden">
-              <h3 className="text-xs font-black uppercase text-slate-400 font-mono tracking-widest pb-3 border-b border-slate-800 mb-4">
-                Daftar Percakapan ({chatThreads.length})
-              </h3>
-              
-              <div className="flex-1 overflow-y-auto space-y-2 pr-1 text-xs">
-                {chatThreads.length === 0 ? (
-                  <p className="text-slate-500 italic text-center py-12">Belum ada chat masuk.</p>
-                ) : (
-                  chatThreads.map(thread => {
-                    const isSelected = selectedChatId === (thread.userId || thread.id);
-                    return (
-                      <button
-                        key={thread.userId || thread.id}
-                        onClick={() => {
-                          const idToSelect = thread.userId || thread.id;
-                          setSelectedChatId(idToSelect);
-                          loadChatMessages(idToSelect);
-                          
-                          // Mark as read for owner
-                          const list = JSON.parse(localStorage.getItem('fid_invoice_support_chats') || '[]');
-                          const idx = list.findIndex((l: any) => (l.userId === idToSelect) || (l.id === idToSelect));
-                          if (idx > -1) {
-                            list[idx].unreadForOwner = false;
-                            localStorage.setItem('fid_invoice_support_chats', JSON.stringify(list));
-                            updateDoc(doc(db, 'supportChats', idToSelect), { unreadForOwner: false }).catch(() => {});
-                          }
-                        }}
-                        className={`w-full p-3 rounded-xl text-left border transition-all flex items-start gap-3 cursor-pointer relative ${
-                          isSelected 
-                            ? 'bg-blue-600/15 border-blue-500/40 text-white' 
-                            : 'bg-slate-950 border-slate-850 hover:border-slate-700 text-slate-300'
-                        }`}
-                      >
-                        {/* Status indicators */}
-                        {thread.unreadForOwner && (
-                          <span className="absolute top-3 right-3 w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-                        )}
-
-                        <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center shrink-0 font-extrabold text-white text-[11px] font-display">
-                          {(thread.userName || 'User').substring(0, 2).toUpperCase()}
-                        </div>
-
-                        <div className="min-w-0 flex-1 space-y-1">
-                          <div className="flex justify-between items-center pr-2">
-                            <h4 className="font-bold truncate text-white text-[11px]">{thread.userName || 'Pelanggan'}</h4>
-                            <span className="text-[9px] text-slate-500 font-mono">
-                              {thread.lastUpdated ? new Date(thread.lastUpdated).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-slate-500 font-mono truncate">{thread.userEmail}</p>
-                          <p className="text-[11px] text-slate-400 truncate mt-1 leading-relaxed">
-                            {thread.lastMessage || 'Menunggu pesan...'}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            {/* Chat Box window (Right side - md:col-span-8) */}
-            <div className="md:col-span-8 bg-slate-900 border border-slate-850 rounded-2xl overflow-hidden flex flex-col h-full">
-              {selectedChatId ? (
-                <>
-                  {/* Chat header */}
-                  <div className="bg-slate-950/80 p-4 border-b border-slate-850 flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-blue-600/25 border border-blue-500/20 text-blue-400 flex items-center justify-center font-black text-xs font-display">
-                      {chatThreads.find(c => c.userId === selectedChatId)?.userName.substring(0,2).toUpperCase()}
-                    </div>
-                    <div className="text-xs">
-                      <h4 className="font-extrabold text-white">
-                        {chatThreads.find(c => c.userId === selectedChatId)?.userName}
-                      </h4>
-                      <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                        Melayani: {chatThreads.find(c => c.userId === selectedChatId)?.userEmail}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Message viewport */}
-                  <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-950/30">
-                    {chatMessages.length === 0 ? (
-                      <p className="text-center text-slate-500 italic text-xs py-16">Tidak ada pesan.</p>
-                    ) : (
-                      <>
-                        {chatMessages.map((msg, index) => {
-                          const isOwnerMsg = msg.sender === 'agent';
-                          const isSystemBot = msg.sender === 'bot';
-                          
-                          return (
-                            <div 
-                              key={msg.id || index} 
-                              className={`flex ${isOwnerMsg ? 'justify-end' : 'justify-start'}`}
-                            >
-                              <div className={`max-w-[75%] rounded-2xl p-3.5 text-xs text-left shadow-md ${
-                                isOwnerMsg 
-                                  ? 'bg-blue-600 text-white rounded-tr-none' 
-                                  : isSystemBot 
-                                    ? 'bg-slate-850 border border-slate-800 text-slate-300 rounded-tl-none'
-                                    : 'bg-slate-900 border border-slate-800 text-slate-100 rounded-tl-none'
-                              }`}>
-                                <p className="font-bold text-[9px] uppercase tracking-wider mb-1 font-mono opacity-60">
-                                  {msg.senderName} • {msg.timestamp}
-                                </p>
-                                <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-                              </div>
-                            </div>
-                          );
-                        })}
-                        <div ref={messagesEndRef} />
-                      </>
-                    )}
-                  </div>
-
-                  {/* Input form */}
-                  <div className="p-3 bg-slate-950 border-t border-slate-850 flex gap-2 items-center">
-                    <textarea
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendChatReply();
-                        }
-                      }}
-                      placeholder="Tulis balasan pesan support Anda di sini..."
-                      rows={2}
-                      className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-xs outline-none focus:border-blue-500 text-white resize-none"
-                    />
-                    <button
-                      onClick={handleSendChatReply}
-                      className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all cursor-pointer flex items-center justify-center shadow-lg"
-                      title="Kirim Balasan"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-center p-8 space-y-3">
-                  <div className="w-14 h-14 bg-slate-850 rounded-2xl flex items-center justify-center text-slate-500">
-                    <MessageSquare className="w-7 h-7" />
-                  </div>
-                  <div className="max-w-xs space-y-1">
-                    <h3 className="text-sm font-bold text-slate-300">Belum Ada Chat Terpilih</h3>
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
-                      Silakan pilih salah satu percakapan pengguna di panel sebelah kiri untuk mulai mengobrol & membantu secara real-time.
-                    </p>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
