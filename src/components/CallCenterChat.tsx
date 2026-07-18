@@ -81,7 +81,7 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
 
   // Use Firestore onSnapshot for real-time customer support chat replies
   useEffect(() => {
-    loadChatHistory();
+    
 
     // Listen to thread metadata for unreadForUser badge
     const threadUnsubscribe = onSnapshot(doc(db, 'supportChats', userId), (docSnap) => {
@@ -231,11 +231,15 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
       osc.stop(ctx.currentTime + 0.1);
     } catch (ex) {}
 
-    // Simulate smart AI bot (Fidya) auto-reply
-    setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
-      let replyText = '';
+    // Check if an agent has ever replied in this thread
+    const hasAgentReplied = updatedMsgs.some(m => m.sender === 'agent');
+    
+    // Simulate smart AI bot (Fidya) auto-reply ONLY if agent hasn't replied yet
+    if (!hasAgentReplied) {
+      setIsTyping(true);
+      setTimeout(() => {
+        setIsTyping(false);
+        let replyText = '';
 
       const lowerText = userText.toLowerCase();
 
@@ -295,7 +299,8 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
         osc.stop(ctx.currentTime + 0.25);
       } catch (e) {}
 
-    }, 1200);
+      }, 1200);
+    }
 
   };
 

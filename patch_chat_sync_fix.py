@@ -3,10 +3,6 @@ import re
 with open('src/components/CallCenterChat.tsx', 'r') as f:
     content = f.read()
 
-# 1. Remove loadChatHistory call in useEffect
-content = content.replace("loadChatHistory();", "")
-
-# 2. Simplify setMessages in CallCenterChat
 old_set_msgs = """            if (lastMsg.sender === 'agent' && !isOpen) {
               setUnreadCount(prevUnread => prevUnread + 1);
               try {
@@ -24,9 +20,8 @@ old_set_msgs = """            if (lastMsg.sender === 'agent' && !isOpen) {
                 osc.stop(ctx.currentTime + 0.35);
               } catch (e) {}
             }
-            return msgs;
           }
-          return prev;
+          return msgs;
         });"""
 
 new_set_msgs = """            if (lastMsg.sender === 'agent' && !isOpen) {
@@ -46,8 +41,9 @@ new_set_msgs = """            if (lastMsg.sender === 'agent' && !isOpen) {
                 osc.stop(ctx.currentTime + 0.35);
               } catch (e) {}
             }
+            return msgs;
           }
-          return msgs;
+          return prev;
         });"""
 
 content = content.replace(old_set_msgs, new_set_msgs)
