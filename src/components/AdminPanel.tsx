@@ -897,6 +897,14 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
     }
     setDoc(doc(db, 'supportChats', selectedChatId, 'messages', newMsg.id), newMsg).catch(() => {});
 
+    // Create persistent notification for the user
+    createNotification(
+      'info',
+      'Pesan Baru dari Support',
+      `Ada balasan baru dari Andi (Supervisor Customer Experience): "${replyText.length > 50 ? replyText.substring(0, 50) + '...' : replyText}"`,
+      selectedChatId
+    );
+
     setReplyText('');
 
     // Play pleasant UI send sound
