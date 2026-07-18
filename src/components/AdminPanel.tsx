@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   ShieldCheck, Users, TrendingUp, AlertTriangle, CheckCircle, 
   Trash2, Mail, Ban, ShieldAlert, CalendarPlus, Key, Award,
@@ -218,6 +218,14 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [replyText, setReplyText] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom of chat
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages]);
 
   // Selected user for action dropdown/modal
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
@@ -721,11 +729,14 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
     const q = query(collection(db, 'supportChats', selectedChatId, 'messages'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs = snapshot.docs.map(d => d.data());
-      msgs.sort((a: any, b: any) => {
-        const timeA = a.id ? parseInt(a.id.split('_').pop() || '0') : 0;
-        const timeB = b.id ? parseInt(b.id.split('_').pop() || '0') : 0;
-        return timeA - timeB;
-      });
+      
+      const extractTime = (id: string) => {
+        const match = id.match(/\d{10,}/);
+        return match ? parseInt(match[0]) : 0;
+      };
+
+      msgs.sort((a: any, b: any) => extractTime(a.id) - extractTime(b.id));
+      
       localStorage.setItem(`fid_invoice_chat_${selectedChatId}`, JSON.stringify(msgs));
       setChatMessages(msgs);
     }, (error) => {
@@ -2791,30 +2802,33 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
                     {chatMessages.length === 0 ? (
                       <p className="text-center text-slate-500 italic text-xs py-16">Tidak ada pesan.</p>
                     ) : (
-                      chatMessages.map((msg, index) => {
-                        const isOwnerMsg = msg.sender === 'agent';
-                        const isSystemBot = msg.sender === 'bot';
-                        
-                        return (
-                          <div 
-                            key={msg.id || index} 
-                            className={`flex ${isOwnerMsg ? 'justify-end' : 'justify-start'}`}
-                          >
-                            <div className={`max-w-[75%] rounded-2xl p-3.5 text-xs text-left shadow-md ${
-                              isOwnerMsg 
-                                ? 'bg-blue-600 text-white rounded-tr-none' 
-                                : isSystemBot 
-                                  ? 'bg-slate-850 border border-slate-800 text-slate-300 rounded-tl-none'
-                                  : 'bg-slate-900 border border-slate-800 text-slate-100 rounded-tl-none'
-                            }`}>
-                              <p className="font-bold text-[9px] uppercase tracking-wider mb-1 font-mono opacity-60">
-                                {msg.senderName} • {msg.timestamp}
-                              </p>
-                              <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                      <>
+                        {chatMessages.map((msg, index) => {
+                          const isOwnerMsg = msg.sender === 'agent';
+                          const isSystemBot = msg.sender === 'bot';
+                          
+                          return (
+                            <div 
+                              key={msg.id || index} 
+                              className={`flex ${isOwnerMsg ? 'justify-end' : 'justify-start'}`}
+                            >
+                              <div className={`max-w-[75%] rounded-2xl p-3.5 text-xs text-left shadow-md ${
+                                isOwnerMsg 
+                                  ? 'bg-blue-600 text-white rounded-tr-none' 
+                                  : isSystemBot 
+                                    ? 'bg-slate-850 border border-slate-800 text-slate-300 rounded-tl-none'
+                                    : 'bg-slate-900 border border-slate-800 text-slate-100 rounded-tl-none'
+                              }`}>
+                                <p className="font-bold text-[9px] uppercase tracking-wider mb-1 font-mono opacity-60">
+                                  {msg.senderName} • {msg.timestamp}
+                                </p>
+                                <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })
+                          );
+                        })}
+                        <div ref={messagesEndRef} />
+                      </>
                     )}
                   </div>
 

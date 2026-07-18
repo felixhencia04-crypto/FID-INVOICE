@@ -109,11 +109,13 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
     const q = query(collection(db, 'supportChats', userId, 'messages'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs = snapshot.docs.map(d => d.data() as ChatMessage);
-      msgs.sort((a, b) => {
-        const timeA = a.id ? parseInt(a.id.split('_').pop() || '0') : 0;
-        const timeB = b.id ? parseInt(b.id.split('_').pop() || '0') : 0;
-        return timeA - timeB;
-      }); // basic sort
+      
+      const extractTime = (id: string) => {
+        const match = id.match(/\d{10,}/);
+        return match ? parseInt(match[0]) : 0;
+      };
+
+      msgs.sort((a, b) => extractTime(a.id) - extractTime(b.id)); // robust sort
       
       if (msgs.length > 0) {
         setMessages(prev => {
