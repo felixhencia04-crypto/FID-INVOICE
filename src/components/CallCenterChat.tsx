@@ -196,11 +196,9 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
     }
     localStorage.setItem('fid_invoice_support_chats', JSON.stringify(threads));
 
-    fetch(`/api/chats/${userId}/message`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: updatedMsgs, threadMeta: threadInfo })
-    }).catch(e => console.error(e));
+    // Sync to Firestore
+    setDoc(doc(db, 'supportChats', userId), threadInfo).catch(e => console.error(e));
+    setDoc(doc(db, 'supportChats', userId, 'messages', newMsg.id), newMsg).catch(e => console.error(e));
 
     // Play a crisp keyboard click send chime
     try {
