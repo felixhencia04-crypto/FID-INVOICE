@@ -721,7 +721,11 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
     const q = query(collection(db, 'supportChats', selectedChatId, 'messages'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs = snapshot.docs.map(d => d.data());
-      msgs.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime() || 0);
+      msgs.sort((a: any, b: any) => {
+        const timeA = a.id ? parseInt(a.id.split('_').pop() || '0') : 0;
+        const timeB = b.id ? parseInt(b.id.split('_').pop() || '0') : 0;
+        return timeA - timeB;
+      });
       localStorage.setItem(`fid_invoice_chat_${selectedChatId}`, JSON.stringify(msgs));
       setChatMessages(msgs);
     }, (error) => {

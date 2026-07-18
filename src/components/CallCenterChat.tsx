@@ -46,7 +46,11 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
       const querySnapshot = await getDocs(collection(db, 'supportChats', userId, 'messages'));
       if (!querySnapshot.empty) {
         const msgs = querySnapshot.docs.map(d => d.data() as ChatMessage);
-        msgs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime() || 0);
+        msgs.sort((a, b) => {
+        const timeA = a.id ? parseInt(a.id.split('_').pop() || '0') : 0;
+        const timeB = b.id ? parseInt(b.id.split('_').pop() || '0') : 0;
+        return timeA - timeB;
+      });
         localStorage.setItem(chatKey, JSON.stringify(msgs));
         setMessages(msgs);
         return;
@@ -94,7 +98,11 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
     const q = query(collection(db, 'supportChats', userId, 'messages'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs = snapshot.docs.map(d => d.data() as ChatMessage);
-      msgs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime() || 0); // basic sort
+      msgs.sort((a, b) => {
+        const timeA = a.id ? parseInt(a.id.split('_').pop() || '0') : 0;
+        const timeB = b.id ? parseInt(b.id.split('_').pop() || '0') : 0;
+        return timeA - timeB;
+      }); // basic sort
       
       if (msgs.length > 0) {
         setMessages(prev => {
