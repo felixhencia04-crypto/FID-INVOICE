@@ -1,4 +1,5 @@
-import { AppNotification } from '../types';
+with open('src/utils/notificationService.ts', 'w') as f:
+    f.write("""import { AppNotification } from '../types';
 
 export const getNotifications = (): AppNotification[] => {
   try {
@@ -69,3 +70,4 @@ export const createNotification = async (
   
   return newNotif;
 };
+""")

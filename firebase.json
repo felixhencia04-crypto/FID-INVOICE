@@ -1,0 +1,8 @@
+{
+  "firestore": [
+    {
+      "database": "ai-studio-fidinvoice-113f2c1e-5b42-4330-b445-295795b85286",
+      "rules": "firestore.rules"
+    }
+  ]
+}
