@@ -5,6 +5,8 @@ import {
   Check, CheckCheck, HelpCircle, Shield, CreditCard, Ban
 } from 'lucide-react';
 import { UserProfile } from '../types';
+import { db } from '../lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 
 
