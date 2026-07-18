@@ -72,7 +72,7 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
       if (!isOpen) {
         const threadStr = localStorage.getItem('fid_invoice_support_chats') || '[]';
         const threads = JSON.parse(threadStr);
-        const myThread = threads.find((t: any) => t.userId === userId);
+        const myThread = threads.find((t: any) => (t.userId === userId) || (t.id === userId));
         if (myThread && myThread.unreadForUser) {
           setUnreadCount(1);
         }
@@ -147,7 +147,7 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
     const threadStr = localStorage.getItem('fid_invoice_support_chats') || '[]';
     const threads = JSON.parse(threadStr);
     const updatedThreads = threads.map((t: any) => {
-      if (t.userId === userId) {
+      if ((t.userId === userId) || (t.id === userId)) {
         return { ...t, unreadForUser: false };
       }
       return t;
@@ -183,7 +183,7 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
     // Update global threads index list for Admin Panel
     const threadStr = localStorage.getItem('fid_invoice_support_chats') || '[]';
     let threads = JSON.parse(threadStr);
-    const targetIdx = threads.findIndex((t: any) => t.userId === userId);
+    const targetIdx = threads.findIndex((t: any) => (t.userId === userId) || (t.id === userId));
 
     const threadInfo = {
       userId,

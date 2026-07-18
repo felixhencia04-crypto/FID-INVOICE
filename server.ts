@@ -426,32 +426,40 @@ app.post('/api/chats/sync', (req, res) => {
 // Post a single message
 app.post('/api/chats/:id/message', (req, res) => {
   const threadId = req.params.id;
-  const { message, threadMeta } = req.body;
+  const { message, messages, threadMeta } = req.body;
   const data = loadChats();
   
   if (!data.messages[threadId]) {
     data.messages[threadId] = [];
   }
   
-  // Prevent duplicate
-  if (!data.messages[threadId].some(m => m.id === message.id)) {
+  if (messages && Array.isArray(messages)) {
+    messages.forEach(msg => {
+      if (!data.messages[threadId].some(m => m.id === msg.id)) {
+        data.messages[threadId].push(msg);
+      }
+    });
+  }
+  
+  if (message && !data.messages[threadId].some(m => m.id === message.id)) {
     data.messages[threadId].push(message);
   }
   
-  // Update thread meta if provided
+  // Sort messages
+  data.messages[threadId].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime() || 0);
+
   if (threadMeta) {
     const tIdx = data.threads.findIndex(t => (t.userId === threadId) || (t.id === threadId));
     if (tIdx > -1) {
-      data.threads[tIdx] = { ...data.threads[tIdx], ...threadMeta, lastUpdated: message.timestamp };
+      data.threads[tIdx] = { ...data.threads[tIdx], ...threadMeta, lastUpdated: new Date().toISOString() };
     } else {
-      data.threads.push({ ...threadMeta, userId: threadId, lastUpdated: message.timestamp });
+      data.threads.push({ ...threadMeta, userId: threadId, lastUpdated: new Date().toISOString() });
     }
   }
 
   saveChats(data);
-  return res.json({ success: true });
+  return res.json({ success: true, messages: data.messages[threadId] });
 });
-
 // --- ADMIN CONFIG ENDPOINTS ---
 app.get('/api/admin/config', (req, res) => {
   try {

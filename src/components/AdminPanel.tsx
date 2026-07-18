@@ -889,7 +889,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
     // Update index list
     const indexStr = localStorage.getItem('fid_invoice_support_chats') || '[]';
     let indexList = JSON.parse(indexStr);
-    const targetIdx = indexList.findIndex((item: any) => item.userId === selectedChatId);
+    const targetIdx = indexList.findIndex((item: any) => (item.userId === selectedChatId) || (item.id === selectedChatId));
     let threadMeta = null;
     if (targetIdx > -1) {
       indexList[targetIdx] = {
@@ -2669,17 +2669,18 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
                   <p className="text-slate-500 italic text-center py-12">Belum ada chat masuk.</p>
                 ) : (
                   chatThreads.map(thread => {
-                    const isSelected = selectedChatId === thread.userId;
+                    const isSelected = selectedChatId === (thread.userId || thread.id);
                     return (
                       <button
-                        key={thread.userId}
+                        key={thread.userId || thread.id}
                         onClick={() => {
-                          setSelectedChatId(thread.userId);
-                          loadChatMessages(thread.userId);
+                          const idToSelect = thread.userId || thread.id;
+                          setSelectedChatId(idToSelect);
+                          loadChatMessages(idToSelect);
                           
                           // Mark as read for owner
                           const list = JSON.parse(localStorage.getItem('fid_invoice_support_chats') || '[]');
-                          const idx = list.findIndex((l: any) => l.userId === thread.userId);
+                          const idx = list.findIndex((l: any) => (l.userId === idToSelect) || (l.id === idToSelect));
                           if (idx > -1) {
                             list[idx].unreadForOwner = false;
                             localStorage.setItem('fid_invoice_support_chats', JSON.stringify(list));
