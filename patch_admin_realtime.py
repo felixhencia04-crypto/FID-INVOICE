@@ -1,39 +1,52 @@
 import re
+
 with open('src/components/AdminPanel.tsx', 'r') as f:
     content = f.read()
 
-old_funcs = """  const loadChatThreads = async () => {
+import_old = "import { collection, doc, setDoc, query, updateDoc } from 'firebase/firestore';"
+import_new = "import { collection, doc, getDocs, setDoc, onSnapshot, query, updateDoc } from 'firebase/firestore';"
+content = content.replace(import_old, import_new)
+
+fetch_old = """  // Load support chat threads
+  const loadChatThreads = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, 'supportChats'));
-      const threads = querySnapshot.docs.map(d => d.data());
-      localStorage.setItem('fid_invoice_support_chats', JSON.stringify(threads));
-      setChatThreads(threads.sort((a: any, b: any) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()));
+      const res = await fetch('/api/chats');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.threads) {
+          localStorage.setItem('fid_invoice_support_chats', JSON.stringify(data.threads));
+          setChatThreads(data.threads.sort((a: any, b: any) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()));
+        }
+      }
     } catch (e) {}
   };
 
-  // Load active support chat messages
   const loadChatMessages = async (userId: string) => {
     try {
-      const querySnapshot = await getDocs(collection(db, 'supportChats', userId, 'messages'));
-      const msgs = querySnapshot.docs.map(d => d.data());
-      msgs.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime() || 0);
-      localStorage.setItem(`fid_invoice_chat_${userId}`, JSON.stringify(msgs));
-      setChatMessages(msgs);
+      const res = await fetch(`/api/chats/${userId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.messages) {
+          data.messages.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime() || 0);
+          localStorage.setItem(`fid_invoice_chat_${userId}`, JSON.stringify(data.messages));
+          setChatMessages(data.messages);
+        }
+      }
     } catch(e) {}
   };"""
 
-new_funcs = """  // Load support chat threads real-time
+fetch_new = """  // Load support chat threads using Firestore onSnapshot
   useEffect(() => {
     const q = query(collection(db, 'supportChats'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const threads = snapshot.docs.map(d => d.data());
+      threads.sort((a: any, b: any) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime());
       localStorage.setItem('fid_invoice_support_chats', JSON.stringify(threads));
-      setChatThreads(threads.sort((a: any, b: any) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()));
+      setChatThreads(threads);
     });
     return () => unsubscribe();
   }, []);
 
-  // Load active support chat messages real-time
   useEffect(() => {
     if (!selectedChatId) return;
     const q = query(collection(db, 'supportChats', selectedChatId, 'messages'));
@@ -44,37 +57,27 @@ new_funcs = """  // Load support chat threads real-time
       setChatMessages(msgs);
     });
     return () => unsubscribe();
-  }, [selectedChatId]);"""
+  }, [selectedChatId]);
 
-content = content.replace(old_funcs, new_funcs)
+  const loadChatThreads = () => {};
+  const loadChatMessages = (userId: string) => {};"""
 
-old_interval = """    const interval = setInterval(() => {
-      loadUsers();
-      loadPendingPayments();
-      loadChatThreads();
-      loadNotifications();
-      if (selectedChatId) {
-        loadChatMessages(selectedChatId);
-      }
-    }, 1500);"""
+content = content.replace(fetch_old, fetch_new)
 
-new_interval = """    const interval = setInterval(() => {
-      loadUsers();
-      loadPendingPayments();
-      loadNotifications();
-    }, 1500);"""
+# Also remove the sync call inside handleSendReply
+sync_old = """    // Sync to backend server
+    fetch('/api/chats/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        threads: [threadMeta],
+        messages: {
+          [selectedChatId]: [newMsg]
+        }
+      })
+    }).catch(err => console.error('Failed to sync chat to server:', err));"""
 
-content = content.replace(old_interval, new_interval)
-
-# We also need to fix where loadChatMessages was called on click
-old_click = """                        onClick={() => {
-                          const idToSelect = thread.userId || thread.id;
-                          setSelectedChatId(idToSelect);
-                          loadChatMessages(idToSelect);"""
-new_click = """                        onClick={() => {
-                          const idToSelect = thread.userId || thread.id;
-                          setSelectedChatId(idToSelect);"""
-content = content.replace(old_click, new_click)
+content = content.replace(sync_old, "")
 
 with open('src/components/AdminPanel.tsx', 'w') as f:
     f.write(content)
