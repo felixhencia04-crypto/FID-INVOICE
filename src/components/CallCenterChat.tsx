@@ -33,7 +33,15 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const userId = currentUser?.id || 'guest_user';
+  const [persistentId] = useState(() => {
+    const saved = localStorage.getItem('fid_invoice_guest_id');
+    if (saved) return saved;
+    const newId = 'guest_' + Math.random().toString(36).substring(2, 9);
+    localStorage.setItem('fid_invoice_guest_id', newId);
+    return newId;
+  });
+
+  const userId = currentUser?.id || persistentId;
   const userName = currentUser?.fullName || 'Tamu';
   const userEmail = currentUser?.email || 'guest@example.com';
 
@@ -60,7 +68,7 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
     const welcomeMsgs: ChatMessage[] = [
       {
         id: 'msg_sys_1',
-        sender: 'agent',
+        sender: 'bot',
         senderName: 'Fidya - AI Support',
         text: 'Halo! Ada yang bisa kami bantu?',
         timestamp: new Date().toTimeString().split(' ')[0].substring(0, 5)
@@ -81,7 +89,10 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
 
   // Use Firestore onSnapshot for real-time customer support chat replies
   useEffect(() => {
+    if (!userId) return;
     
+    // Initial load
+    loadChatHistory();
 
     // Listen to thread metadata for unreadForUser badge
     const threadUnsubscribe = onSnapshot(doc(db, 'supportChats', userId), (docSnap) => {
@@ -106,7 +117,8 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
       
       if (msgs.length > 0) {
         setMessages(prev => {
-          if (msgs.length !== prev.length || (msgs.length > 0 && prev.length > 0 && msgs[msgs.length - 1].id !== prev[prev.length - 1].id)) {
+          // Check if there is actually a NEW message that is from an agent
+          if (msgs.length > prev.length) {
             const lastMsg = msgs[msgs.length - 1];
             if (lastMsg.sender === 'agent' && !isOpen) {
               setUnreadCount(prevUnread => prevUnread + 1);
@@ -125,10 +137,12 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
                 osc.stop(ctx.currentTime + 0.35);
               } catch (e) {}
             }
-            return msgs;
           }
-          return prev;
+          return msgs;
         });
+        
+        // Keep localStorage in sync for offline support
+        localStorage.setItem('fid_invoice_chat_' + userId, JSON.stringify(msgs));
       }
     }, (error) => {
       console.warn('Call center snapshot error:', error);
@@ -186,10 +200,9 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
 
     // Update messages
     const chatKey = 'fid_invoice_chat_' + userId;
-    const existingMsgs = JSON.parse(localStorage.getItem(chatKey) || '[]');
-    const updatedMsgs = [...existingMsgs, newMsg];
-    localStorage.setItem(chatKey, JSON.stringify(updatedMsgs));
+    const updatedMsgs = [...messages, newMsg];
     setMessages(updatedMsgs);
+    localStorage.setItem(chatKey, JSON.stringify(updatedMsgs));
 
     // Update global threads index list for Admin Panel
     const threadStr = localStorage.getItem('fid_invoice_support_chats') || '[]';
@@ -265,10 +278,11 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
         timestamp: new Date().toTimeString().split(' ')[0].substring(0, 5)
       };
 
-      const currentMsgs = JSON.parse(localStorage.getItem(chatKey) || '[]');
-      const finalMsgs = [...currentMsgs, botMsg];
-      localStorage.setItem(chatKey, JSON.stringify(finalMsgs));
-      setMessages(finalMsgs);
+      setMessages(prev => {
+        const finalMsgs = [...prev, botMsg];
+        localStorage.setItem(chatKey, JSON.stringify(finalMsgs));
+        return finalMsgs;
+      });
 
       // Update index with bot reply too
       const currentThreads = JSON.parse(localStorage.getItem('fid_invoice_support_chats') || '[]');

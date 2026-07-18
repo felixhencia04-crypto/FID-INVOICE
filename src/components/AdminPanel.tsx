@@ -909,7 +909,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
     const now = new Date();
     const formattedTime = now.toTimeString().split(' ')[0].substring(0, 5);
     const newMsg = {
-      id: 'msg_reply_owner_' + Date.now(),
+      id: 'msg_reply_owner_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
       sender: 'agent' as const,
       senderName: 'Andi - Customer Experience',
       text: replyText,
@@ -917,16 +917,19 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
     };
 
     const chatKey = 'fid_invoice_chat_' + selectedChatId;
-    const existingMsgs = JSON.parse(localStorage.getItem(chatKey) || '[]');
-    const updatedMsgs = [...existingMsgs, newMsg];
+    const updatedMsgs = [...chatMessages, newMsg];
     localStorage.setItem(chatKey, JSON.stringify(updatedMsgs));
     setChatMessages(updatedMsgs);
 
-    // Update index list
+    // Update index list & metadata
     const indexStr = localStorage.getItem('fid_invoice_support_chats') || '[]';
     let indexList = JSON.parse(indexStr);
     const targetIdx = indexList.findIndex((item: any) => (item.userId === selectedChatId) || (item.id === selectedChatId));
-    let threadMeta = null;
+    
+    // Find metadata from state if not in indexList
+    const currentThread = chatThreads.find(c => (c.userId === selectedChatId) || (c.id === selectedChatId));
+    let threadMeta = currentThread ? { ...currentThread } : null;
+
     if (targetIdx > -1) {
       indexList[targetIdx] = {
         ...indexList[targetIdx],
@@ -938,6 +941,12 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
       threadMeta = indexList[targetIdx];
       localStorage.setItem('fid_invoice_support_chats', JSON.stringify(indexList));
       setChatThreads(indexList.sort((a: any, b: any) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()));
+    } else if (threadMeta) {
+      // If we have it from state but not localStorage, update it for Firestore
+      threadMeta.lastMessage = replyText;
+      threadMeta.lastUpdated = new Date().toISOString();
+      threadMeta.unreadForOwner = false;
+      threadMeta.unreadForUser = true;
     }
 
     // Sync to Firestore
@@ -2736,14 +2745,14 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
                         )}
 
                         <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center shrink-0 font-extrabold text-white text-[11px] font-display">
-                          {thread.userName.substring(0, 2).toUpperCase()}
+                          {(thread.userName || 'User').substring(0, 2).toUpperCase()}
                         </div>
 
                         <div className="min-w-0 flex-1 space-y-1">
                           <div className="flex justify-between items-center pr-2">
-                            <h4 className="font-bold truncate text-white text-[11px]">{thread.userName}</h4>
+                            <h4 className="font-bold truncate text-white text-[11px]">{thread.userName || 'Pelanggan'}</h4>
                             <span className="text-[9px] text-slate-500 font-mono">
-                              {new Date(thread.lastUpdated).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                              {thread.lastUpdated ? new Date(thread.lastUpdated).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}
                             </span>
                           </div>
                           <p className="text-[10px] text-slate-500 font-mono truncate">{thread.userEmail}</p>
