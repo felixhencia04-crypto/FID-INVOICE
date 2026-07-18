@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { UserProfile, AppNotification } from '../types';
 import { getNotifications, saveNotifications, syncNotifications } from '../utils/notificationService';
+import { db } from '../lib/firebase';
+import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
 
 interface NotificationCenterProps {
   currentUser: UserProfile | null;

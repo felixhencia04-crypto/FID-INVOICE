@@ -5,6 +5,8 @@ import {
   Check, CheckCheck, HelpCircle, Shield, CreditCard, Ban
 } from 'lucide-react';
 import { UserProfile } from '../types';
+import { db } from '../lib/firebase';
+import { collection, doc, getDocs, setDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
 
 interface CallCenterChatProps {
   currentUser: UserProfile | null;
@@ -83,52 +85,44 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
     }
   };
 
-  // Check for admin replies regularly
+  // Use Firestore onSnapshot for real-time customer support chat replies
   useEffect(() => {
     loadChatHistory();
 
-    // Start polling server for real-time customer support chat replies
-    pollIntervalRef.current = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/chats/${userId}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.messages.length > 0) {
-            const parsed = data.messages;
-            setMessages(prev => {
-              if (parsed.length > prev.length) {
-                // New message arrived
-                const lastMsg = parsed[parsed.length - 1];
-                if (lastMsg.sender === 'agent' && !isOpen) {
-                  setUnreadCount(prevUnread => prevUnread + 1);
-                  // Play dynamic notification chime
-                  try {
-                    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-                    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1); // A5
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    gain.gain.setValueAtTime(0.04, ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-                    osc.start();
-                    osc.stop(ctx.currentTime + 0.35);
-                  } catch (e) {}
-                }
-                return parsed;
-              }
-              return prev;
-            });
+    const q = query(collection(db, 'supportChats', userId, 'messages'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs = snapshot.docs.map(d => d.data() as ChatMessage);
+      msgs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime() || 0); // basic sort
+      
+      if (msgs.length > 0) {
+        setMessages(prev => {
+          if (msgs.length !== prev.length || (msgs.length > 0 && prev.length > 0 && msgs[msgs.length - 1].id !== prev[prev.length - 1].id)) {
+            const lastMsg = msgs[msgs.length - 1];
+            if (lastMsg.sender === 'agent' && !isOpen) {
+              setUnreadCount(prevUnread => prevUnread + 1);
+              try {
+                const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+                osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                gain.gain.setValueAtTime(0.04, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.35);
+              } catch (e) {}
+            }
+            return msgs;
           }
-        }
-      } catch (e) {}
-    }, 2000);
+          return prev;
+        });
+      }
+    });
 
-    return () => {
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-    };
+    return () => unsubscribe();
   }, [userId, isOpen]);
 
   // Scroll to bottom
@@ -266,6 +260,10 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
         currentThreads[myIdx].lastUpdated = new Date().toISOString();
         localStorage.setItem('fid_invoice_support_chats', JSON.stringify(currentThreads));
       }
+
+      // Sync bot message to Firestore
+      setDoc(doc(db, 'supportChats', userId), { ...threadInfo, unreadForOwner: false }).catch(() => {});
+      setDoc(doc(db, 'supportChats', userId, 'messages', botMsg.id), botMsg).catch(() => {});
 
       // Play soft incoming notification sound
       try {

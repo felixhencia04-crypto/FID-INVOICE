@@ -11,6 +11,8 @@ import {
   BarChart, Bar, Legend, PieChart, Pie, Cell 
 } from 'recharts';
 import { UserProfile, AppNotification } from '../types';
+import { db } from '../lib/firebase';
+import { collection, doc, getDocs, setDoc, onSnapshot, query, updateDoc } from 'firebase/firestore';
 import { formatCurrency, formatDateIndonesian } from '../utils';
 import ConfirmModal from './ConfirmModal';
 import { getNotifications, saveNotifications, createNotification, syncNotifications } from '../utils/notificationService';
@@ -668,37 +670,22 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
   // Load support chat threads
   const loadChatThreads = async () => {
     try {
-      const res = await fetch('/api/chats');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          const threads = data.threads || [];
-          localStorage.setItem('fid_invoice_support_chats', JSON.stringify(threads));
-          setChatThreads(threads.sort((a: any, b: any) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()));
-          return;
-        }
-      }
+      const querySnapshot = await getDocs(collection(db, 'supportChats'));
+      const threads = querySnapshot.docs.map(d => d.data());
+      localStorage.setItem('fid_invoice_support_chats', JSON.stringify(threads));
+      setChatThreads(threads.sort((a: any, b: any) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()));
     } catch (e) {}
-    const threads = JSON.parse(localStorage.getItem('fid_invoice_support_chats') || '[]');
-    setChatThreads(threads.sort((a: any, b: any) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()));
   };
 
   // Load active support chat messages
   const loadChatMessages = async (userId: string) => {
     try {
-      const res = await fetch(`/api/chats/${userId}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          const msgs = data.messages || [];
-          localStorage.setItem(`fid_invoice_chat_${userId}`, JSON.stringify(msgs));
-          setChatMessages(msgs);
-          return;
-        }
-      }
+      const querySnapshot = await getDocs(collection(db, 'supportChats', userId, 'messages'));
+      const msgs = querySnapshot.docs.map(d => d.data());
+      msgs.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime() || 0);
+      localStorage.setItem(`fid_invoice_chat_${userId}`, JSON.stringify(msgs));
+      setChatMessages(msgs);
     } catch(e) {}
-    const messages = JSON.parse(localStorage.getItem('fid_invoice_chat_' + userId) || '[]');
-    setChatMessages(messages);
   };
 
   // Load system notifications
@@ -904,12 +891,11 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
       setChatThreads(indexList.sort((a: any, b: any) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()));
     }
 
-    // Sync to server
-    fetch(`/api/chats/${selectedChatId}/message`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: updatedMsgs, threadMeta })
-    }).catch(e => console.error(e));
+    // Sync to Firestore
+    if (threadMeta) {
+      setDoc(doc(db, 'supportChats', selectedChatId), threadMeta).catch(() => {});
+    }
+    setDoc(doc(db, 'supportChats', selectedChatId, 'messages', newMsg.id), newMsg).catch(() => {});
 
     setReplyText('');
 
@@ -2684,6 +2670,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
                           if (idx > -1) {
                             list[idx].unreadForOwner = false;
                             localStorage.setItem('fid_invoice_support_chats', JSON.stringify(list));
+                            updateDoc(doc(db, 'supportChats', idToSelect), { unreadForOwner: false }).catch(() => {});
                           }
                         }}
                         className={`w-full p-3 rounded-xl text-left border transition-all flex items-start gap-3 cursor-pointer relative ${
