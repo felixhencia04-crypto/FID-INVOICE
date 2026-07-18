@@ -697,7 +697,23 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
     }, (error) => {
       console.warn('Chat threads snapshot error:', error);
     });
-    return () => unsubscribe();
+
+    // Fallback: Listen to localStorage changes across tabs
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'fid_invoice_support_chats' && e.newValue) {
+        try {
+          const threads = JSON.parse(e.newValue);
+          threads.sort((a: any, b: any) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime());
+          setChatThreads(threads);
+        } catch(err) {}
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -925,14 +941,6 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
       setDoc(doc(db, 'supportChats', selectedChatId), threadMeta).catch(() => {});
     }
     setDoc(doc(db, 'supportChats', selectedChatId, 'messages', newMsg.id), newMsg).catch(() => {});
-
-    // Create persistent notification for the user
-    createNotification(
-      'info',
-      'Pesan Baru dari Support',
-      `Ada balasan baru dari Andi (Supervisor Customer Experience): "${replyText.length > 50 ? replyText.substring(0, 50) + '...' : replyText}"`,
-      selectedChatId
-    );
 
     setReplyText('');
 
@@ -1451,7 +1459,9 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
           <Mail className="w-4 h-4 text-blue-400" />
           Dukungan Pesan Masuk
           {chatThreads.filter(c => c.unreadForOwner).length > 0 && (
-            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse absolute right-3 top-3" />
+            <span className="w-5 h-5 flex items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ml-auto animate-pulse">
+              {chatThreads.filter(c => c.unreadForOwner).length}
+            </span>
           )}
         </button>
         <button 

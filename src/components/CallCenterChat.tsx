@@ -68,14 +68,7 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
       const parsed = JSON.parse(stored);
       setMessages(parsed);
       
-      if (!isOpen) {
-        const threadStr = localStorage.getItem('fid_invoice_support_chats') || '[]';
-        const threads = JSON.parse(threadStr);
-        const myThread = threads.find((t: any) => (t.userId === userId) || (t.id === userId));
-        if (myThread && myThread.unreadForUser) {
-          setUnreadCount(1);
-        }
-      }
+
     } else {
       localStorage.setItem(chatKey, JSON.stringify(welcomeMsgs));
       setMessages(welcomeMsgs);
@@ -85,6 +78,18 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
   // Use Firestore onSnapshot for real-time customer support chat replies
   useEffect(() => {
     loadChatHistory();
+
+    // Listen to thread metadata for unreadForUser badge
+    const threadUnsubscribe = onSnapshot(doc(db, 'supportChats', userId), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.unreadForUser && !isOpen) {
+          setUnreadCount(1);
+        } else if (!data.unreadForUser) {
+          setUnreadCount(0);
+        }
+      }
+    }, (error) => {});
 
     const q = query(collection(db, 'supportChats', userId, 'messages'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -121,7 +126,10 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
       console.warn('Call center snapshot error:', error);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (typeof threadUnsubscribe === 'function') threadUnsubscribe();
+    };
   }, [userId, isOpen]);
 
   // Scroll to bottom
@@ -135,6 +143,8 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
   const handleOpenChat = () => {
     setIsOpen(true);
     setUnreadCount(0);
+    // Mark as read in Firestore
+    setDoc(doc(db, 'supportChats', userId), { unreadForUser: false }, { merge: true }).catch(() => {});
     
     // Clear unreadForUser in index
     const threadStr = localStorage.getItem('fid_invoice_support_chats') || '[]';
@@ -258,7 +268,7 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
       }
 
       // Sync bot message to Firestore
-      setDoc(doc(db, 'supportChats', userId), { ...threadInfo, unreadForOwner: false }).catch(e => console.error(e));
+      setDoc(doc(db, 'supportChats', userId), { ...threadInfo, unreadForOwner: true, lastMessage: replyText.substring(0, 60) + '...' }).catch(e => console.error(e));
       setDoc(doc(db, 'supportChats', userId, 'messages', botMsg.id), botMsg).catch(e => console.error(e));
 
       // Play soft incoming notification sound
