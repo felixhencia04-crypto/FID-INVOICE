@@ -4,7 +4,7 @@ import {
   Wrench, LogIn, Check, Trash2, Calendar
 } from 'lucide-react';
 import { UserProfile, AppNotification } from '../types';
-import { getNotifications, saveNotifications } from '../utils/notificationService';
+import { getNotifications, saveNotifications, syncNotifications } from '../utils/notificationService';
 
 interface NotificationCenterProps {
   currentUser: UserProfile | null;
@@ -36,11 +36,15 @@ export default function NotificationCenter({ currentUser }: NotificationCenterPr
   };
 
   useEffect(() => {
-    loadNotifications();
+    syncNotifications().then(() => loadNotifications());
 
     const handleUpdate = () => {
       loadNotifications();
     };
+    
+    const interval = setInterval(() => {
+      syncNotifications().then(() => loadNotifications());
+    }, 2000);
 
     window.addEventListener('fid_notifications_updated', handleUpdate);
     

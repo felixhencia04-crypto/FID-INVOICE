@@ -13,7 +13,7 @@ import {
 import { UserProfile, AppNotification } from '../types';
 import { formatCurrency, formatDateIndonesian } from '../utils';
 import ConfirmModal from './ConfirmModal';
-import { getNotifications, saveNotifications, createNotification } from '../utils/notificationService';
+import { getNotifications, saveNotifications, createNotification, syncNotifications } from '../utils/notificationService';
 import { showToast } from '../utils/toast';
 
 interface AdminPanelProps {
@@ -684,13 +684,26 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
   };
 
   // Load active support chat messages
-  const loadChatMessages = (userId: string) => {
+  const loadChatMessages = async (userId: string) => {
+    try {
+      const res = await fetch(`/api/chats/${userId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          const msgs = data.messages || [];
+          localStorage.setItem(`fid_invoice_chat_${userId}`, JSON.stringify(msgs));
+          setChatMessages(msgs);
+          return;
+        }
+      }
+    } catch(e) {}
     const messages = JSON.parse(localStorage.getItem('fid_invoice_chat_' + userId) || '[]');
     setChatMessages(messages);
   };
 
   // Load system notifications
-  const loadNotifications = () => {
+  const loadNotifications = async () => {
+    await syncNotifications();
     setNotificationsList(getNotifications());
   };
 
@@ -877,6 +890,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
     const indexStr = localStorage.getItem('fid_invoice_support_chats') || '[]';
     let indexList = JSON.parse(indexStr);
     const targetIdx = indexList.findIndex((item: any) => item.userId === selectedChatId);
+    let threadMeta = null;
     if (targetIdx > -1) {
       indexList[targetIdx] = {
         ...indexList[targetIdx],
@@ -885,9 +899,17 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
         unreadForOwner: false,
         unreadForUser: true
       };
+      threadMeta = indexList[targetIdx];
       localStorage.setItem('fid_invoice_support_chats', JSON.stringify(indexList));
       setChatThreads(indexList.sort((a: any, b: any) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()));
     }
+
+    // Sync to server
+    fetch(`/api/chats/${selectedChatId}/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: newMsg, threadMeta })
+    }).catch(e => console.error(e));
 
     setReplyText('');
 
