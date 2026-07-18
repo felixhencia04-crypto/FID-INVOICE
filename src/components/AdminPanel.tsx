@@ -908,7 +908,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
     fetch(`/api/chats/${selectedChatId}/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: newMsg, threadMeta })
+      body: JSON.stringify({ messages: updatedMsgs, threadMeta })
     }).catch(e => console.error(e));
 
     setReplyText('');

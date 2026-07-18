@@ -388,7 +388,8 @@ app.post('/api/chats/sync', (req, res) => {
   // Merge threads
   if (threads && Array.isArray(threads)) {
     threads.forEach(t => {
-      const idx = data.threads.findIndex(dt => dt.id === t.id);
+      const threadId = t.userId || t.id;
+      const idx = data.threads.findIndex(dt => (dt.userId === threadId) || (dt.id === threadId));
       if (idx > -1) {
         if (new Date(t.lastUpdated).getTime() > new Date(data.threads[idx].lastUpdated).getTime()) {
           data.threads[idx] = t;
@@ -439,11 +440,11 @@ app.post('/api/chats/:id/message', (req, res) => {
   
   // Update thread meta if provided
   if (threadMeta) {
-    const tIdx = data.threads.findIndex(t => t.id === threadId);
+    const tIdx = data.threads.findIndex(t => (t.userId === threadId) || (t.id === threadId));
     if (tIdx > -1) {
       data.threads[tIdx] = { ...data.threads[tIdx], ...threadMeta, lastUpdated: message.timestamp };
     } else {
-      data.threads.push({ ...threadMeta, id: threadId, lastUpdated: message.timestamp });
+      data.threads.push({ ...threadMeta, userId: threadId, lastUpdated: message.timestamp });
     }
   }
 

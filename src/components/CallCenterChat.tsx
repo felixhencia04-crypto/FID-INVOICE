@@ -205,7 +205,7 @@ export default function CallCenterChat({ currentUser, onNavigate }: CallCenterCh
     fetch(`/api/chats/${userId}/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: newMsg, threadMeta: threadInfo })
+      body: JSON.stringify({ messages: updatedMsgs, threadMeta: threadInfo })
     }).catch(e => console.error(e));
 
     // Play a crisp keyboard click send chime
