@@ -4,14 +4,13 @@ import {
   Trash2, Ban, ShieldAlert, CalendarPlus, Key, Award,
   Sparkles, DollarSign, Download, Settings, RefreshCw, X,
   Check, Hourglass, Clock, AlertCircle,
-  Lock, Unlock, Eye, EyeOff, Shield, Bell,
-  Mail, MessageSquare, Bot, Headset, User, FileText, Send
+  Lock, Unlock, Eye, EyeOff, Shield, Bell
 } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   BarChart, Bar, Legend, PieChart, Pie, Cell 
 } from 'recharts';
-import { UserProfile, AppNotification, ChatMessage, SupportThread } from '../types';
+import { UserProfile, AppNotification } from '../types';
 import { db } from '../lib/firebase';
 import { 
   collection, doc, getDocs, setDoc, onSnapshot, query, 
@@ -72,7 +71,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
   const [searchTerm, setSearchTerm] = useState('');
   
   // NEW TOP-LEVEL ADMIN VIEW SECTIONS
-  const [adminSection, setAdminSection] = useState<'users' | 'payments' | 'chats' | 'email_settings' | 'notifications'>('users');
+  const [adminSection, setAdminSection] = useState<'users' | 'payments' | 'email_settings' | 'notifications'>('users');
 
   // PAYMENT RECAP FILTER STATE
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'pending' | 'confirmed' | 'rejected'>('all');
@@ -217,18 +216,6 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
   
   // NEW OWNER STATES
   const [pendingPayments, setPendingPayments] = useState<any[]>([]);
-  const [chatThreads, setChatThreads] = useState<SupportThread[]>([]);
-  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [replyText, setReplyText] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Auto-scroll to bottom of chat
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollTop = messagesEndRef.current.scrollHeight;
-    }
-  }, [chatMessages]);
 
   // Selected user for action dropdown/modal
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
@@ -681,80 +668,6 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
   const loadNotifications = async () => {
     await syncNotifications();
     setNotificationsList(getNotifications());
-  };
-
-  // Load support chat threads
-  useEffect(() => {
-    if (!isAuthorized) return;
-
-    const q = query(collection(db, 'supportChats'), orderBy('timestamp_ms', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const threads = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as SupportThread));
-      setChatThreads(threads);
-    });
-
-    return () => unsubscribe();
-  }, [isAuthorized]);
-
-  // Load messages for selected chat
-  useEffect(() => {
-    if (!selectedChatId) return;
-
-    const q = query(
-      collection(db, 'supportChats', selectedChatId, 'messages'), 
-      orderBy('timestamp_ms', 'asc'),
-      limit(100)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const msgs = snapshot.docs.map(d => d.data() as ChatMessage);
-      setChatMessages(msgs);
-
-      // Mark as read for owner
-      const currentThread = chatThreads.find(c => c.id === selectedChatId);
-      if (currentThread?.unreadForOwner) {
-        updateDoc(doc(db, 'supportChats', selectedChatId), { unreadForOwner: false }).catch(() => {});
-      }
-    });
-
-    return () => unsubscribe();
-  }, [selectedChatId, chatThreads]);
-
-  const handleSendChatReply = async () => {
-    if (!selectedChatId || !replyText.trim()) return;
-
-    const text = replyText.trim();
-    setReplyText('');
-
-    const now = new Date();
-    const timestamp_ms = now.getTime();
-    const timestamp = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-
-    const messageId = `msg_reply_${Date.now()}`;
-    const newMsg: ChatMessage = {
-      id: messageId,
-      sender: 'agent',
-      senderName: 'Andi - Customer Experience',
-      text,
-      timestamp,
-      timestamp_ms
-    };
-
-    try {
-      const threadRef = doc(db, 'supportChats', selectedChatId);
-      const msgRef = doc(db, 'supportChats', selectedChatId, 'messages', messageId);
-      
-      await setDoc(msgRef, newMsg);
-      await updateDoc(threadRef, {
-        lastMessage: text,
-        lastUpdated: now.toISOString(),
-        timestamp_ms,
-        unreadForOwner: false,
-        unreadForUser: true
-      });
-    } catch (err) {
-      console.error('Failed to send admin reply:', err);
-    }
   };
 
   // Poll for changes in real-time & listen to instant update events
@@ -1398,20 +1311,6 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
           Verifikasi & Rekap Pembayaran
           {pendingPayments.filter(p => p.status === 'pending').length > 0 && (
             <span className="w-2 h-2 rounded-full bg-red-500 animate-ping absolute right-3 top-3" />
-          )}
-        </button>
-        <button 
-          onClick={() => {
-            setAdminSection('chats');
-          }}
-          className={`px-5 py-3 text-xs sm:text-sm font-black flex items-center gap-2 border-b-2 transition-all cursor-pointer ${adminSection === 'chats' ? 'border-brand-gold text-white bg-slate-900/40' : 'border-transparent text-slate-400 hover:text-white'} relative`}
-        >
-          <Mail className="w-4 h-4 text-blue-400" />
-          Dukungan Pesan Masuk
-          {chatThreads.filter(c => c.unreadForOwner).length > 0 && (
-            <span className="w-5 h-5 flex items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ml-auto animate-pulse">
-              {chatThreads.filter(c => c.unreadForOwner).length}
-            </span>
           )}
         </button>
         <button 
@@ -2625,156 +2524,6 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
                   })
                 )}
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-        {adminSection === 'chats' && (
-        <div className="space-y-6">
-          <div className="p-4 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-xl text-xs leading-relaxed flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-blue-400 shrink-0" />
-            <div>
-              <strong>Support Inbox (Andi CS Mode):</strong> Manage customer inquiries in real-time. 
-              Your replies will be sent instantly to the user's support widget.
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 h-[550px]">
-            {/* Thread list */}
-            <div className="md:col-span-4 bg-slate-900 border border-slate-850 rounded-2xl p-4 flex flex-col h-full overflow-hidden shadow-xl">
-              <h3 className="text-xs font-black uppercase text-slate-400 font-mono tracking-widest pb-3 border-b border-slate-800 mb-4">
-                Percakapan ({chatThreads.length})
-              </h3>
-              
-              <div className="flex-1 overflow-y-auto space-y-2 pr-1 text-xs">
-                {chatThreads.length === 0 ? (
-                  <p className="text-slate-500 italic text-center py-12">Belum ada chat.</p>
-                ) : (
-                  chatThreads.map(thread => (
-                    <button
-                      key={thread.id}
-                      onClick={() => setSelectedChatId(thread.id)}
-                      className={`w-full p-3 rounded-xl text-left border transition-all flex items-start gap-3 cursor-pointer relative ${
-                        selectedChatId === thread.id 
-                          ? 'bg-blue-600/15 border-blue-500/40 text-white' 
-                          : 'bg-slate-950 border-slate-850 hover:border-slate-700 text-slate-300'
-                      }`}
-                    >
-                      {thread.unreadForOwner && (
-                        <span className="absolute top-3 right-3 w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]" />
-                      )}
-
-                      <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center shrink-0 font-extrabold text-white text-xs border border-slate-700">
-                        {(thread.userName || 'U').substring(0, 1).toUpperCase()}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex justify-between items-center">
-                          <h4 className="font-bold truncate text-white">{thread.userName}</h4>
-                          <span className="text-[9px] text-slate-500 font-mono">
-                            {new Date(thread.timestamp_ms).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                        <p className="text-[10px] text-slate-500 truncate mb-1">{thread.userEmail}</p>
-                        <p className="text-[11px] text-slate-400 truncate mt-1">
-                          {thread.lastMessage || 'Menunggu pesan...'}
-                        </p>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Chat viewport */}
-            <div className="md:col-span-8 bg-slate-900 border border-slate-850 rounded-2xl overflow-hidden flex flex-col h-full shadow-xl">
-              {selectedChatId ? (
-                <>
-                  <div className="bg-slate-950 p-4 border-b border-slate-850 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-blue-600/20 border border-blue-500/20 text-blue-400 flex items-center justify-center font-black text-xs">
-                        {chatThreads.find(c => c.id === selectedChatId)?.userName.substring(0,1).toUpperCase()}
-                      </div>
-                      <div className="text-xs">
-                        <h4 className="font-bold text-white">
-                          {chatThreads.find(c => c.id === selectedChatId)?.userName}
-                        </h4>
-                        <p className="text-[10px] text-slate-500">{chatThreads.find(c => c.id === selectedChatId)?.userEmail}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div 
-                    ref={messagesEndRef}
-                    className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-950/30"
-                  >
-                    {chatMessages.map((msg, index) => (
-                      <div key={msg.id || index} className={`flex ${msg.sender === 'agent' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[75%] rounded-2xl p-3 text-xs ${
-                          msg.sender === 'agent' 
-                            ? 'bg-blue-600 text-white rounded-tr-none shadow-lg shadow-blue-900/20' 
-                            : 'bg-slate-800 text-slate-100 rounded-tl-none border border-slate-700'
-                        }`}>
-                          <div className="flex items-center gap-2 mb-1 opacity-60 text-[9px] font-bold uppercase tracking-wider">
-                            {msg.sender === 'bot' ? <Bot className="w-3 h-3" /> : (msg.sender === 'agent' ? <Headset className="w-3 h-3" /> : <User className="w-3 h-3" />)}
-                            <span>{msg.senderName} • {msg.timestamp}</span>
-                          </div>
-                          
-                          {msg.attachment && (
-                            <div className="mb-2 rounded-lg overflow-hidden border border-black/10 bg-black/5 max-w-sm">
-                              {msg.attachment.type.startsWith('image/') ? (
-                                <img src={msg.attachment.data} alt={msg.attachment.name} className="max-w-full h-auto block" />
-                              ) : (
-                                <div className="p-3 flex items-center gap-2 bg-slate-700">
-                                  <FileText className="w-5 h-5 text-blue-400" />
-                                  <span className="text-xs font-medium truncate">{msg.attachment.name}</span>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="p-4 bg-slate-950 border-t border-slate-850 flex gap-2 items-end">
-                    <textarea
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendChatReply();
-                        }
-                      }}
-                      placeholder="Tulis balasan Anda..."
-                      rows={1}
-                      className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-blue-500 text-white resize-none"
-                    />
-                    <button
-                      onClick={handleSendChatReply}
-                      disabled={!replyText.trim()}
-                      className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-center p-8 space-y-4">
-                  <div className="w-16 h-16 bg-slate-850 rounded-2xl flex items-center justify-center text-slate-600">
-                    <MessageSquare className="w-8 h-8" />
-                  </div>
-                  <div className="max-w-xs">
-                    <h3 className="text-sm font-bold text-slate-300">Belum Ada Chat Terpilih</h3>
-                    <p className="text-[11px] text-slate-500 leading-relaxed mt-1">
-                      Pilih salah satu percakapan di sebelah kiri untuk mulai membantu pengguna.
-                    </p>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>

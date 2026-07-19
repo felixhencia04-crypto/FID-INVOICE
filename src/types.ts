@@ -140,32 +140,4 @@ export interface AppNotification {
   showPopup: boolean;
 }
 
-export interface ChatMessage {
-  id: string;
-  sender: 'user' | 'agent' | 'bot';
-  senderName: string;
-  text?: string;
-  attachment?: {
-    name: string;
-    type: string;
-    data: string; // Base64 for small attachments in this demo context
-    size: number;
-  };
-  timestamp: string; // HH:mm
-  timestamp_ms: number;
-}
-
-export interface SupportThread {
-  id: string;
-  userId: string;
-  userName: string;
-  userEmail: string;
-  lastMessage: string;
-  lastUpdated: string; // ISO string
-  timestamp_ms: number;
-  unreadForUser: boolean;
-  unreadForOwner: boolean;
-  status: 'active' | 'closed';
-}
-
 

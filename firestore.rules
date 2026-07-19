@@ -31,16 +31,5 @@ service cloud.firestore {
     match /admins/{userId} {
       allow read: if isSignedIn();
     }
-
-    // Support Chats
-    match /supportChats/{threadId} {
-      allow read, write: if isAdmin();
-      allow read, create, update: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid) && (request.resource == null || request.resource.data.userId == request.auth.uid);
-      
-      match /messages/{messageId} {
-        allow read, write: if isAdmin();
-        allow read, create: if isSignedIn() && get(/databases/$(database)/documents/supportChats/$(threadId)).data.userId == request.auth.uid;
-      }
-    }
   }
 }
