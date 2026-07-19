@@ -615,62 +615,21 @@ export default function App() {
       const uniqueQuotations = rawQuotations.filter((q: Quotation, idx: number, self: Quotation[]) =>
         self.findIndex(i => i.id === q.id) === idx
       );
-      
+
       setClients(uniqueClients);
       setProducts(uniqueProducts);
       setInvoices(uniqueInvoices);
-      
-      const defaultQuotations = [
-        {
-          id: 'q-demo-1',
-          quotationNumber: 'QT-2026-0001',
-          userId: userId,
-          clientId: SEED_CLIENTS[0]?.id || 'cli-1',
-          clientName: SEED_CLIENTS[0]?.name || 'Felix Hencia',
-          date: new Date().toISOString().split('T')[0],
-          validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          items: [
-            {
-              id: 'qitem-1',
-              description: 'Jasa Pembuatan Website Custom',
-              qty: 1,
-              unit: 'Paket',
-              price: 8500000,
-              discountPercent: 0,
-              subtotal: 8500000
-            }
-          ],
-          globalDiscountPercent: 5,
-          hasTax: true,
-          hasTax2: false,
-          subtotal: 8500000,
-          discountAmount: 425000,
-          taxAmount: 888250,
-          tax2Amount: 0,
-          total: 8963250,
-          spelledOut: 'Delapan Juta Sembilan Ratus Enam Puluh Tiga Ribu Dua Ratus Lima Puluh Rupiah',
-          status: 'Draft' as const,
-          notes: 'Penawaran ini mencakup analisis sistem penuh dan implementasi awal.',
-          terms: '1. Penawaran harga ini berlaku selama 30 hari sejak tanggal diterbitkan.\n2. Pembayaran uang muka sebesar 50% dilakukan saat penandatanganan persetujuan.\n3. Sisa pelunasan 50% dilakukan setelah pekerjaan selesai dideploy.',
-          templateId: 'corporate',
-          currency: 'IDR',
-          createdAt: new Date().toISOString()
-        }
-      ];
-
-      const loadedQuotations = uniqueQuotations.length > 0 ? uniqueQuotations : defaultQuotations;
-      setQuotations(loadedQuotations);
+      setQuotations(uniqueQuotations);
 
       // Save back deduplicated state to heal any corrupted localStorage
       const dataToSave = {
         clients: uniqueClients,
         products: uniqueProducts,
         invoices: uniqueInvoices,
-        quotations: loadedQuotations
+        quotations: uniqueQuotations
       };
       localStorage.setItem(`fid_invoice_user_${userId}_data`, JSON.stringify(dataToSave));
     }
-
   };
 
   const saveUserDataToStorage = (userId: string, updatedClients: Client[], updatedProducts: Product[], updatedInvoices: Invoice[], updatedQuotations?: Quotation[]) => {

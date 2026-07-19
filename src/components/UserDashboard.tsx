@@ -41,22 +41,57 @@ export default function UserDashboard({ user, invoices, clients, onNavigate, onS
   const totalInvoicedSum = paidSum + pendingSum + overdueSum;
   const collectionRate = totalInvoicedSum > 0 ? Math.round((paidSum / totalInvoicedSum) * 100) : 100;
 
-  // Static Monthly Data with Dynamic June based on user's real data
-  const monthlyRevenueData = [
-    { m: 'Januari', val: 4500000, invoicesCount: 3, topClient: 'Toko Buku Sejahtera', status: 'Lunas 100%' },
-    { m: 'Februari', val: 7800000, invoicesCount: 5, topClient: 'Apotek Kimia Mandiri', status: 'Lunas 100%' },
-    { m: 'Maret', val: 11000000, invoicesCount: 8, topClient: 'CV Abadi Lestari', status: 'Lunas 95%' },
-    { m: 'April', val: 9500000, invoicesCount: 6, topClient: 'PT Sinar Mentari', status: 'Lunas 90%' },
-    { m: 'Mei', val: 14000000, invoicesCount: 10, topClient: 'Koperasi Jaya Raya', status: 'Lunas 92%' },
-    { 
-      m: 'Juni', 
-      val: invoices.reduce((acc, curr) => acc + curr.total, 0) || 12500000, 
-      invoicesCount: totalInvoicesCount || 7, 
-      topClient: invoices[0]?.clientName || 'Belum ada klien dominan',
-      status: `Lunas ${collectionRate}%`
+  // Monthly data calculation
+  const getMonthlyData = () => {
+    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    const currentMonthIdx = new Date().getMonth();
+    
+    // Create an array of the last 6 months
+    const last6Months = [];
+    for (let i = 5; i >= 0; i--) {
+      const idx = (currentMonthIdx - i + 12) % 12;
+      last6Months.push({
+        month: months[idx],
+        monthIdx: idx,
+        year: new Date().getFullYear() - (currentMonthIdx - i < 0 ? 1 : 0)
+      });
     }
-  ];
 
+    return last6Months.map(m => {
+      const monthInvoices = invoices.filter(inv => {
+        const d = new Date(inv.date);
+        return d.getMonth() === m.monthIdx && d.getFullYear() === m.year;
+      });
+
+      const total = monthInvoices.reduce((acc, curr) => acc + curr.total, 0);
+      const paid = monthInvoices.filter(inv => inv.status === 'Lunas').length;
+      const rate = monthInvoices.length > 0 ? Math.round((paid / monthInvoices.length) * 100) : 0;
+
+      // Find top client for this month
+      const clientMap = new Map<string, number>();
+      monthInvoices.forEach(inv => {
+        clientMap.set(inv.clientName, (clientMap.get(inv.clientName) || 0) + inv.total);
+      });
+      let topClient = 'Belum ada data';
+      let maxVal = 0;
+      clientMap.forEach((v, k) => {
+        if (v > maxVal) {
+          maxVal = v;
+          topClient = k;
+        }
+      });
+
+      return {
+        m: m.month,
+        val: total,
+        invoicesCount: monthInvoices.length,
+        topClient: topClient,
+        status: monthInvoices.length > 0 ? `Lunas ${rate}%` : 'Tanpa Transaksi'
+      };
+    });
+  };
+
+  const monthlyRevenueData = getMonthlyData();
   const activeMonth = monthlyRevenueData[selectedMonthIdx];
 
   // Search & Filter Recent Invoices

@@ -2065,7 +2065,7 @@ export default function QuotationManagement({
                         <div className="text-[10px] text-gray-400">
                           <p>Diterima dan Disetujui Oleh:</p>
                           <div className="h-16 flex items-center justify-center">
-                            <span className="text-gray-300 italic">( Tanda Tangan Klien )</span>
+                            {/* Space for manual signature */}
                           </div>
                           <p className="border-t border-dashed border-gray-200 pt-1 text-slate-700 font-bold mt-2">
                             {clients.find(c => c.id === selectedClientId)?.name || 'Perwakilan Klien'}
@@ -2078,7 +2078,7 @@ export default function QuotationManagement({
                             {user.signatureImage ? (
                               <img src={preloadedSignatureBase64 || user.signatureImage} alt="Tanda Tangan" className="h-14 object-contain" />
                             ) : (
-                              <span className="text-gray-300 italic mr-6">( Tanda Tangan Digital )</span>
+                              <div className="w-16 h-10 border border-dashed border-gray-100 rounded-lg"></div>
                             )}
                           </div>
                           <p className="border-t border-dashed border-gray-200 pt-1 text-slate-700 font-bold mt-2 inline-block">
@@ -2373,7 +2373,7 @@ export default function QuotationManagement({
                   {user.signatureImage ? (
                     <img src={preloadedSignatureBase64 || user.signatureImage} alt="Tanda Tangan" className="h-16 object-contain" />
                   ) : (
-                    <span className="text-gray-300 italic mr-10">( Tanda Tangan Digital )</span>
+                    <div className="w-20 h-12 border border-dashed border-gray-100 rounded-xl"></div>
                   )}
                   {user.stampImage && (
                     <img src={preloadedStampBase64 || user.stampImage} alt="Cap Stempel" className="h-16 w-16 object-contain absolute right-2 opacity-80" />
