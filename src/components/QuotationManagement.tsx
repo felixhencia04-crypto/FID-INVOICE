@@ -1114,11 +1114,6 @@ export default function QuotationManagement({
       doc.text('Tanda Tangan Persetujuan Klien,', 20, sigY);
       
       doc.setDrawColor(220, 225, 230);
-      doc.setFont('helvetica', 'italic');
-      doc.setFontSize(7.5);
-      doc.setTextColor(160, 170, 180);
-      doc.text('( Tanda Tangan & Cap )', 20, sigY + 11);
-      
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9.5);
       doc.setTextColor(31, 41, 55);
@@ -2364,8 +2359,8 @@ export default function QuotationManagement({
             <div className="pt-8 border-t border-gray-100 flex justify-between items-end">
               <div className="text-xs text-gray-400">
                 <p>Tanda Tangan Penerima Penawaran (Klien):</p>
-                <div className="h-20 flex items-center justify-center">
-                  <span className="text-gray-300 italic border border-dashed border-gray-200 px-4 py-2 rounded-xl text-[10px]">Persetujuan Klien</span>
+                <div className="h-20 flex items-center justify-center border border-dashed border-gray-100 rounded-2xl bg-gray-50/30">
+                  {/* Space for manual signature */}
                 </div>
                 <p className="border-t border-dashed border-gray-200 pt-1 text-slate-700 font-bold mt-2">
                   {selectedQuotation.clientName}

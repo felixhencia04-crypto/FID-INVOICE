@@ -867,19 +867,37 @@ export default function InvoicePreviewPdf({
       const wrappedNotes = doc.splitTextToSize(invoice.notes || '-', 80);
       doc.text(wrappedNotes, 20, currentY + 4);
 
-      // Instruksi Pembayaran
+      // Instruksi Pembayaran & Bank Details
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
       doc.setTextColor(156, 163, 175);
-      doc.text('INSTRUKSI PEMBAYARAN:', 108, currentY);
+      doc.text('INFORMASI PEMBAYARAN:', 108, currentY);
+      
+      let bankInfoY = currentY + 4;
+      if (user.bankName || user.bankAccountNumber) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(31, 41, 55);
+        doc.text(`${user.bankName || ''}`, 108, bankInfoY);
+        bankInfoY += 3.5;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.text(`${user.bankAccountNumber || ''}`, 108, bankInfoY);
+        bankInfoY += 3.5;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(75, 85, 99);
+        doc.text(`a/n ${user.bankAccountHolder || user.fullName || ''}`, 108, bankInfoY);
+        bankInfoY += 5;
+      }
       
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
+      doc.setFontSize(7.5);
       doc.setTextColor(107, 114, 128);
       const wrappedTerms = doc.splitTextToSize(invoice.terms || '-', 82);
-      doc.text(wrappedTerms, 108, currentY + 4);
+      doc.text(wrappedTerms, 108, bankInfoY);
 
-      const notesBottomHeight = Math.max(wrappedNotes.length, wrappedTerms.length) * 3.5;
+      const notesBottomHeight = Math.max(wrappedNotes.length * 4, (bankInfoY - currentY) + (wrappedTerms.length * 3.5));
       currentY += Math.max(10, notesBottomHeight + 6);
 
       // --- SIGNATURE AREA (Bottom Right) ---
@@ -1534,8 +1552,17 @@ export default function InvoicePreviewPdf({
                     <p className="font-mono font-bold text-gray-400 uppercase tracking-wider text-[8px]">Catatan Khusus (Special Notes):</p>
                     <p className="text-gray-600 leading-relaxed whitespace-pre-wrap font-medium">{invoice.notes || '-'}</p>
                   </div>
-                  <div className="space-y-1 text-[9px]">
+                  <div className="space-y-1.5 text-[9px]">
                     <p className="font-mono font-bold text-gray-400 uppercase tracking-wider text-[8px]">Instruksi Pembayaran (Payment Terms):</p>
+                    
+                    {(user.bankName || user.bankAccountNumber) && (
+                      <div className="bg-blue-50/50 p-2 rounded-lg border border-blue-100/50 mb-1">
+                        <p className="font-bold text-slate-800">{user.bankName}</p>
+                        <p className="text-sm font-black text-brand-primary font-mono">{user.bankAccountNumber}</p>
+                        <p className="text-[8px] text-gray-500 italic">a/n {user.bankAccountHolder || user.fullName}</p>
+                      </div>
+                    )}
+
                     <p className="text-gray-600 leading-relaxed whitespace-pre-wrap font-medium">{invoice.terms || '-'}</p>
                   </div>
                 </div>
