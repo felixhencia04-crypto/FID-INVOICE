@@ -2614,7 +2614,7 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
 
                     {testEmailSuccess && (
                       <div className="p-3 bg-green-500/10 border border-green-500/20 text-green-400 rounded-xl text-xs font-bold">
-                        ✓ Email uji coba berhasil dikirim ke {testEmailDest}! Silakan cek folder Inbox atau Spam Anda.
+                        ✓ Email uji coba berhasil dikirim ke {testEmailDest}! Jika masuk ke SPAM, pastikan domain pengirim Anda sudah diverifikasi di Resend.
                       </div>
                     )}
 
@@ -2644,7 +2644,19 @@ export default function AdminPanel({ onUsersUpdated, onCloseAdmin, currentUser }
               </div>
 
               {/* INTEGRATION GUIDE */}
-              <div className="pt-6 border-t border-slate-800 space-y-3 text-left">
+              <div className="pt-6 border-t border-slate-800 space-y-6 text-left">
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-5 space-y-3">
+                  <h4 className="text-xs font-black uppercase text-amber-500 tracking-wider flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4" /> Checklist Agar Email Tidak Masuk SPAM
+                  </h4>
+                  <ul className="text-[11px] text-slate-300 space-y-2 list-disc pl-4 leading-relaxed">
+                    <li><strong>Verifikasi Domain (Wajib):</strong> Masuk ke Resend &gt; Domains dan tambahkan <code className="bg-slate-950 px-1 rounded">fidinvoice.id</code>. Tambahkan semua catatan DNS (DKIM/SPF) yang diberikan ke penyedia domain Anda.</li>
+                    <li><strong>Gunakan Custom Domain:</strong> Hindari menggunakan email gratisan. Gunakan domain yang sudah terverifikasi agar memiliki reputasi tinggi di mata Gmail/Outlook.</li>
+                    <li><strong>Jangan Gunakan Key Uji Coba:</strong> Pastikan API Key yang Anda gunakan bukan lagi mode "onboarding" jika ingin mengirim ke email selain milik Anda sendiri.</li>
+                    <li><strong>DMARC Record:</strong> Pastikan domain Anda memiliki record DMARC di DNS untuk keamanan tambahan yang disukai oleh filter spam modern.</li>
+                  </ul>
+                </div>
+
                 <h4 className="text-xs font-black uppercase text-indigo-400 tracking-wider">📘 Petunjuk Teknis Integrasi Backend Untuk Developer</h4>
                 <div className="text-xs text-slate-400 leading-relaxed space-y-2">
                   <p>Aplikasi ini telah siap dipasarkan dengan modul gateway transaksional otomatis. Ketika Anda memindahkan server ke production backend, Anda dapat mengimplementasikan controller di bawah ini menggunakan pustaka resmi <code className="bg-slate-950 px-1 py-0.5 text-brand-gold rounded font-mono">@resend/node</code>:</p>

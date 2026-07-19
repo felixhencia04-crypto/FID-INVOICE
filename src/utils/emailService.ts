@@ -9,6 +9,7 @@ export interface ResendEmailPayload {
   subject: string;
   html: string;
   apiKey?: string;
+  replyTo?: string;
 }
 
 export const getResendConfig = () => {
@@ -41,7 +42,10 @@ async function dispatchEmail(payload: ResendEmailPayload): Promise<boolean> {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ ...payload }), // Server must handle apiKey
+      body: JSON.stringify({ 
+        ...payload,
+        replyTo: payload.replyTo || 'support@fidinvoice.id'
+      }), 
     });
 
     if (response.ok) {

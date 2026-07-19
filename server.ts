@@ -767,6 +767,7 @@ app.post('/api/send-email', async (req, res) => {
       to: Array.isArray(to) ? to : [to],
       subject,
       html,
+      reply_to: req.body.replyTo || from,
     });
 
     if (error) {
