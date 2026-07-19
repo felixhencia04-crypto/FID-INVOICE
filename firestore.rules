@@ -1,43 +1,46 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-    
-    function isOwner(uid) {
-      return isAuthenticated() && request.auth.uid == uid;
-    }
-    
-    function isAdmin() {
-      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
     }
 
-    match /users/{uid} {
-      allow read: if isOwner(uid) || isAdmin();
-      allow write: if isOwner(uid) || isAdmin();
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
+
+    // Admins list
+    match /admins/{userId} {
+      allow read: if isSignedIn();
+    }
+
+    // Support Chats
+    match /supportChats/{threadId} {
+      allow read, write: if isAdmin();
+      allow read, create, update: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid) && (request.resource == null || request.resource.data.userId == request.auth.uid);
       
-      match /clients/{document=**} {
-        allow read, write: if isOwner(uid) || isAdmin();
+      match /messages/{messageId} {
+        allow read, write: if isAdmin();
+        allow read, create: if isSignedIn() && get(/databases/$(database)/documents/supportChats/$(threadId)).data.userId == request.auth.uid;
       }
-      match /products/{document=**} {
-        allow read, write: if isOwner(uid) || isAdmin();
-      }
-      match /invoices/{document=**} {
-        allow read, write: if isOwner(uid) || isAdmin();
-      }
-      match /quotations/{document=**} {
-        allow read, write: if isOwner(uid) || isAdmin();
-      }
-    }
-    
-    match /notifications/{document=**} {
-      allow read, write: if true;
-    }
-    
-    match /supportChats/{document=**} {
-      allow read, write: if true;
     }
   }
 }

@@ -5,7 +5,7 @@ import {
   CreditCard, Settings, ShieldCheck, LogOut, Menu, X, ArrowLeft,
   DollarSign, RefreshCw, AlertTriangle, PlayCircle, KeyRound, Sparkles,
   AlertCircle, Receipt, ExternalLink, ChevronDown, Plus, User, UserPlus,
-  FileSpreadsheet, Ban
+  FileSpreadsheet, Ban, Headset
 } from 'lucide-react';
 
 import { UserProfile, Client, Product, Invoice, Quotation } from './types';
@@ -24,6 +24,7 @@ import ReportsAnalytics from './components/ReportsAnalytics';
 import SubscriptionPage from './components/SubscriptionPage';
 import ProfileSettings from './components/ProfileSettings';
 import AdminPanel from './components/AdminPanel';
+import SupportChat from './components/SupportChat';
 import InvoicePreviewPdf from './components/InvoicePreviewPdf';
 import InvoiceBatchReportPdf from './components/InvoiceBatchReportPdf';
 import QrisPaymentBox from './components/QrisPaymentBox';
@@ -1192,6 +1193,10 @@ export default function App() {
         return;
       }
     }
+    if (page === 'help') {
+      window.dispatchEvent(new CustomEvent('fid_open_support'));
+      return;
+    }
     setCurrentPage(page);
   };
 
@@ -1523,6 +1528,7 @@ export default function App() {
     { id: 'reports', label: 'Laporan Keuangan', icon: BarChart3 },
     { id: 'subscription', label: 'Paket Saya', icon: CreditCard },
     { id: 'settings', label: 'Setelan Profil', icon: Settings },
+    { id: 'help', label: 'Bantuan & Dukungan', icon: Headset },
   ];
 
   const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
@@ -2066,6 +2072,18 @@ export default function App() {
                       <span>Atur Profil & Perusahaan</span>
                     </button>
 
+                    <button
+                      onClick={() => {
+                        setViewingInvoice(null);
+                        window.dispatchEvent(new CustomEvent('fid_open_support'));
+                        setProfileDropdownOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 py-2 px-2.5 hover:bg-gray-50 rounded-xl text-[10px] font-bold text-gray-600 hover:text-brand-primary transition-colors cursor-pointer text-left"
+                    >
+                      <Headset className="w-3.5 h-3.5 text-gray-400" />
+                      <span>Bantuan & Dukungan</span>
+                    </button>
+
                     {currentUser && (currentUser.email.toLowerCase() === 'felix.hencia04@gmail.com' || currentUser.email.toLowerCase() === 'admin@fidinvoice.com') && (
                       <button
                         onClick={() => {
@@ -2150,6 +2168,7 @@ export default function App() {
         </div>
       )}
 
+      <SupportChat currentUser={currentUser} />
       <NotificationPopup currentUser={currentUser} />
       <ToastContainer toasts={toasts} onClose={(id) => setToasts(prev => prev.filter(t => t.id !== id))} />
     </div>

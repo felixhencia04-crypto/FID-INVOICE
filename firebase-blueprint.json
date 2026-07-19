@@ -1,73 +1,65 @@
 {
-  "models": [
-    {
-      "name": "User",
-      "path": "users/{uid}",
-      "description": "User profiles",
-      "fields": {
-        "email": "string",
-        "name": "string",
-        "role": "string",
-        "plan": "string",
-        "active": "boolean",
-        "createdAt": "timestamp"
-      }
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profiles and subscription data",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string" },
+        "email": { "type": "string" },
+        "businessName": { "type": "string" },
+        "phone": { "type": "string" },
+        "plan": { "type": "string" },
+        "status": { "type": "string" },
+        "expiryDate": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["fullName", "email"]
     },
-    {
-      "name": "Client",
-      "path": "users/{uid}/clients/{clientId}",
-      "description": "Clients belonging to a user",
-      "fields": {
-        "name": "string",
-        "email": "string"
-      }
+    "SupportThread": {
+      "title": "Support Thread",
+      "description": "Metadata for a support chat session",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "lastMessage": { "type": "string" },
+        "lastUpdated": { "type": "string" },
+        "timestamp_ms": { "type": "number" },
+        "unreadForUser": { "type": "boolean" },
+        "unreadForOwner": { "type": "boolean" },
+        "status": { "type": "string" }
+      },
+      "required": ["userId", "userName", "status"]
     },
-    {
-      "name": "Product",
-      "path": "users/{uid}/products/{productId}",
-      "description": "Products belonging to a user",
-      "fields": {
-        "name": "string",
-        "price": "number"
-      }
-    },
-    {
-      "name": "Invoice",
-      "path": "users/{uid}/invoices/{invoiceId}",
-      "description": "Invoices belonging to a user",
-      "fields": {
-        "number": "string",
-        "total": "number"
-      }
-    },
-    {
-      "name": "Quotation",
-      "path": "users/{uid}/quotations/{quotationId}",
-      "description": "Quotations belonging to a user",
-      "fields": {
-        "number": "string"
-      }
-    },
-    {
-      "name": "SupportChat",
-      "path": "supportChats/{chatId}",
-      "description": "Support chat threads",
-      "fields": {
-        "userId": "string",
-        "userName": "string",
-        "status": "string",
-        "updatedAt": "timestamp"
-      }
-    },
-    {
-      "name": "ChatMessage",
-      "path": "supportChats/{chatId}/messages/{messageId}",
-      "description": "Messages inside a support chat",
-      "fields": {
-        "senderId": "string",
-        "text": "string",
-        "timestamp": "timestamp"
-      }
+    "ChatMessage": {
+      "title": "Chat Message",
+      "description": "An individual message in a support thread",
+      "type": "object",
+      "properties": {
+        "sender": { "type": "string" },
+        "senderName": { "type": "string" },
+        "text": { "type": "string" },
+        "attachment": { "type": "object" },
+        "timestamp": { "type": "string" },
+        "timestamp_ms": { "type": "number" }
+      },
+      "required": ["sender", "senderName", "timestamp_ms"]
     }
-  ]
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/supportChats/{threadId}": {
+      "schema": "SupportThread",
+      "description": "Support chat thread metadata"
+    },
+    "/supportChats/{threadId}/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Individual messages in a thread"
+    }
+  }
 }
