@@ -7,7 +7,7 @@ export const loadUserDataFromFirebase = async (userId: string) => {
     const userDocRef = doc(db, 'users', userId);
     const docSnap = await getDoc(userDocRef);
     
-    let data: any = { clients: [], products: [], invoices: [], quotations: [] };
+    let data: any = { clients: [], products: [], invoices: [], quotations: [], profile: null };
     
     // Load from embedded arrays first (if any)
     if (docSnap.exists()) {
@@ -16,6 +16,18 @@ export const loadUserDataFromFirebase = async (userId: string) => {
       if (docData.products) data.products = docData.products;
       if (docData.invoices) data.invoices = docData.invoices;
       if (docData.quotations) data.quotations = docData.quotations;
+      
+      // Extract profile fields
+      data.profile = {
+        fullName: docData.fullName || docData.name,
+        businessName: docData.businessName,
+        phone: docData.phone,
+        businessLogo: docData.businessLogo,
+        signatureImage: docData.signatureImage,
+        stampImage: docData.stampImage,
+        subscription: docData.subscription,
+        profilePicture: docData.profilePicture
+      };
     }
 
     // Always load from subcollections as they are the source of truth for new changes

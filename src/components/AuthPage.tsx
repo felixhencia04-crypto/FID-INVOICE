@@ -209,6 +209,9 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
           businessName: userData.businessName || 'Bisnis Anda',
           email: user.email || '',
           phone: userData.phone || '',
+          businessLogo: userData.businessLogo || '',
+          signatureImage: userData.signatureImage || '',
+          stampImage: userData.stampImage || '',
           subscription: userData.subscription || { plan: selectedPlan, status: "trial", expiryDate: new Date(Date.now() + 3*24*60*60*1000).toISOString().split('T')[0], trialDaysRemaining: 3 },
         };
         onAuthSuccess(profile);
@@ -220,6 +223,9 @@ export default function AuthPage({ initialView, onAuthSuccess, onNavigate, selec
           businessName: 'Bisnis Anda',
           email: user.email || '',
           phone: '',
+          businessLogo: '',
+          signatureImage: '',
+          stampImage: '',
           subscription: { plan: selectedPlan, status: "trial", expiryDate: new Date(Date.now() + 3*24*60*60*1000).toISOString().split('T')[0], trialDaysRemaining: 3 },
         };
         onAuthSuccess(profile);

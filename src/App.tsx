@@ -1,4 +1,6 @@
 import { loadUserDataFromFirebase, syncToFirebaseSubcollections } from "./lib/dataService";
+import { doc, setDoc } from "firebase/firestore";
+import { db } from "./lib/firebase";
 import React, { useState, useEffect } from 'react';
 import { 
   Building2, Users, FileText, ClipboardList, Package, BarChart3, 
@@ -516,6 +518,24 @@ export default function App() {
   const loadUserData = async (userId: string) => {
     const parsed = await loadUserDataFromFirebase(userId);
     if (parsed) {
+      // Sync profile data if it exists in Firestore but is missing or outdated locally
+      if (parsed.profile && currentUser && currentUser.id === userId) {
+        const firestoreHasImages = !!(parsed.profile.businessLogo || parsed.profile.signatureImage || parsed.profile.stampImage);
+        const localHasImages = !!(currentUser.businessLogo || currentUser.signatureImage || currentUser.stampImage);
+        
+        if (firestoreHasImages && !localHasImages) {
+          const refreshedUser: UserProfile = {
+            ...currentUser,
+            businessLogo: parsed.profile.businessLogo || currentUser.businessLogo,
+            signatureImage: parsed.profile.signatureImage || currentUser.signatureImage,
+            stampImage: parsed.profile.stampImage || currentUser.stampImage,
+            profilePicture: parsed.profile.profilePicture || currentUser.profilePicture,
+          };
+          setCurrentUser(refreshedUser);
+          localStorage.setItem('fid_invoice_active_session', JSON.stringify(refreshedUser));
+        }
+      }
+
       let isDemoAndEmpty = false;
       if (userId === 'user-demo' && parsed.clients.length === 0 && parsed.products.length === 0 && parsed.invoices.length === 0 && parsed.quotations.length === 0) {
         isDemoAndEmpty = true;
@@ -830,6 +850,13 @@ export default function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user: updatedUser })
     }).catch(err => console.error('Failed to sync updated user to server:', err));
+
+    // Persist to Firestore for cloud sync
+    setDoc(doc(db, 'users', updatedUser.id), {
+      ...updatedUser,
+      active: true,
+      updatedAt: new Date().toISOString()
+    }, { merge: true }).catch(err => console.error('Failed to sync updated user to Firestore:', err));
 
     // Dispatch event for real-time sync across admin panel
     window.dispatchEvent(new Event('fid_users_updated'));
