@@ -5,7 +5,7 @@ import {
   CreditCard, Settings, ShieldCheck, LogOut, Menu, X, ArrowLeft,
   DollarSign, RefreshCw, AlertTriangle, PlayCircle, KeyRound, Sparkles,
   AlertCircle, Receipt, ExternalLink, ChevronDown, Plus, User, UserPlus,
-  FileSpreadsheet, Ban
+  FileSpreadsheet, Ban, MessageCircle
 } from 'lucide-react';
 
 import { UserProfile, Client, Product, Invoice, Quotation } from './types';
@@ -1192,6 +1192,11 @@ export default function App() {
         return;
       }
     }
+    if (page === 'whatsapp-support') {
+      const waUrl = 'https://wa.me/6283151758025?text=Halo%20FID%20INVOICE%2C%20saya%20butuh%20bantuan%20terkait%20aplikasi.';
+      window.open(waUrl, '_blank');
+      return;
+    }
     setCurrentPage(page);
   };
 
@@ -1523,6 +1528,7 @@ export default function App() {
     { id: 'reports', label: 'Laporan Keuangan', icon: BarChart3 },
     { id: 'subscription', label: 'Paket Saya', icon: CreditCard },
     { id: 'settings', label: 'Setelan Profil', icon: Settings },
+    { id: 'whatsapp-support', label: 'Bantuan WA', icon: MessageCircle },
   ];
 
   const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
@@ -2066,6 +2072,17 @@ export default function App() {
                       <span>Atur Profil & Perusahaan</span>
                     </button>
 
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        window.open('https://wa.me/6283151758025?text=Halo%20FID%20INVOICE%2C%20saya%20butuh%20bantuan%20terkait%20aplikasi.', '_blank');
+                      }}
+                      className="w-full flex items-center gap-2 py-2 px-2.5 hover:bg-gray-50 rounded-xl text-[10px] font-bold text-gray-600 hover:text-brand-primary transition-colors cursor-pointer text-left"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5 text-green-500" />
+                      <span>Bantuan WhatsApp</span>
+                    </button>
+
                     {currentUser && (currentUser.email.toLowerCase() === 'felix.hencia04@gmail.com' || currentUser.email.toLowerCase() === 'admin@fidinvoice.com') && (
                       <button
                         onClick={() => {
@@ -2151,6 +2168,22 @@ export default function App() {
       )}
 
       <NotificationPopup currentUser={currentUser} />
+      
+      {currentUser && (
+        <a
+          href="https://wa.me/6283151758025?text=Halo%20FID%20INVOICE%2C%20saya%20butuh%20bantuan%20terkait%20aplikasi."
+          target="_blank"
+          rel="noopener noreferrer"
+          className="fixed bottom-6 right-6 z-[9998] w-14 h-14 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-full shadow-2xl flex items-center justify-center transition-all hover:scale-110 active:scale-95 group"
+          title="Hubungi CS via WhatsApp"
+        >
+          <MessageCircle className="w-8 h-8" />
+          <span className="absolute right-16 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-slate-200 dark:border-slate-700">
+            Tanya Admin (WA)
+          </span>
+        </a>
+      )}
+
       <ToastContainer toasts={toasts} onClose={(id) => setToasts(prev => prev.filter(t => t.id !== id))} />
     </div>
   );

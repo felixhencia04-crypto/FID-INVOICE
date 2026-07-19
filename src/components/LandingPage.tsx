@@ -1421,7 +1421,10 @@ export default function LandingPage({ onNavigate, onSelectPlan }: LandingPagePro
             <ul className="space-y-2 text-xs">
               <li><a href="#fitur" className="hover:text-white transition-colors">Fitur Invoice</a></li>
               <li><a href="#harga" className="hover:text-white transition-colors">Paket Harga</a></li>
-              <li><a href="#alur-kerja" className="hover:text-white transition-colors">Integrasi</a></li>
+              <li><a href="https://wa.me/6283151758025?text=Halo%20FID%20INVOICE%2C%20saya%20butuh%20bantuan%20terkait%20aplikasi." target="_blank" rel="noopener noreferrer" className="text-green-400 hover:text-green-300 transition-colors font-bold flex items-center gap-1.5">
+                <Send className="w-3 h-3" />
+                Support WA
+              </a></li>
             </ul>
           </div>
 
